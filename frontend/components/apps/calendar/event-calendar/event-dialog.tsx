@@ -222,9 +222,11 @@ export function EventDialog({ event, isOpen, onClose, onSave, onDelete }: EventD
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className=" z-[900]">
+      <DialogContent className=" z-[900] w-fit">
         <DialogHeader>
-          <DialogTitle>{event?.id ? "Edit Event" : "Create Event"}</DialogTitle>
+          <DialogTitle className="text-2xl font-semibold tracking-tight">
+            {event?.id ? "Edit Event" : "Create Event"}
+          </DialogTitle>
           <DialogDescription className="sr-only">
             {event?.id ? "Edit the details of this event" : "Add a new event to your calendar"}
           </DialogDescription>
