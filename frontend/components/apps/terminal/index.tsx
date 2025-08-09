@@ -5,11 +5,16 @@ import { cn } from "@/lib/utils";
 
 export type TerminalAppProps = React.HTMLAttributes<HTMLDivElement>;
 
+type OutputEntry =
+  | { type: "cmd"; prompt: string; text: string }
+  | { type: "out"; text: string }
+  | { type: "error"; text: string };
+
 export function TerminalApp({ className, ...props }: TerminalAppProps) {
   // ---------- State ----------
-  const [outputLines, setOutputLines] = React.useState<string[]>([
-    "Welcome to Oasis Terminal",
-    "Type 'help' and press Enter",
+  const [outputLines, setOutputLines] = React.useState<OutputEntry[]>([
+    { type: "out", text: "Welcome to Oasis Terminal" },
+    { type: "out", text: "Type 'help' and press Enter" },
   ]);
   const [inputValue, setInputValue] = React.useState<string>("");
   const [commandHistory, setCommandHistory] = React.useState<string[]>([]);
@@ -32,7 +37,8 @@ export function TerminalApp({ className, ...props }: TerminalAppProps) {
   }, [outputLines]);
 
   // ---------- Prompt / Output helpers ----------
-  const promptText = React.useMemo(() => `oasis@os:${cwd}$`, [cwd]);
+  const promptName = "oasis";
+  const promptPath = React.useMemo(() => `${cwd} $`, [cwd]);
   // Basic tokenizer for client-side helpers (used for Tab-completion parsing only)
   function tokenize(input: string): string[] {
     const tokens: string[] = [];
@@ -68,11 +74,14 @@ export function TerminalApp({ className, ...props }: TerminalAppProps) {
   }
 
   function printLines(lines: string[]) {
-    setOutputLines((prev) => [...prev, ...lines]);
+    setOutputLines((prev) => [
+      ...prev,
+      ...lines.map<OutputEntry>((t) => ({ type: "out", text: t })),
+    ]);
   }
 
   function printLine(line: string) {
-    setOutputLines((prev) => [...prev, line]);
+    setOutputLines((prev) => [...prev, { type: "out", text: line }]);
   }
 
   // (No local filesystem logic; all command execution handled by API)
@@ -80,8 +89,8 @@ export function TerminalApp({ className, ...props }: TerminalAppProps) {
   async function runCommand(rawInput: string) {
     const input = rawInput.trim();
     if (input.length === 0) return;
-    // Print prompt + command
-    printLine(`${promptText} ${input}`);
+    // Print prompt (path only) + command, with colored prompt in history
+    setOutputLines((prev) => [...prev, { type: "cmd", prompt: promptPath, text: input }]);
     // Update command history navigation
     setCommandHistory((prev) => [...prev, input]);
     setHistoryIndex(-1);
@@ -117,18 +126,36 @@ export function TerminalApp({ className, ...props }: TerminalAppProps) {
   return (
     <div
       className={cn(
-        "w-full min-h-0 h-full bg-black text-green-300 font-mono text-sm p-2 flex flex-col overflow-y-auto",
+        "w-full min-h-0 h-full bg-black text-white font-mono text-sm p-2 flex flex-col overflow-y-auto",
         className
       )}
       onClick={() => inputRef.current?.focus()}
       {...props}
     >
       <div ref={outputRef} className="space-y-0">
-        {outputLines.map((line, idx) => (
-          <div key={idx} className="whitespace-pre-wrap leading-5">
-            {line}
-          </div>
-        ))}
+        <div className="text-cyan-400">{promptName}</div>
+        {outputLines.map((entry, idx) => {
+          if (entry.type === "cmd") {
+            return (
+              <div key={idx} className="whitespace-pre-wrap leading-5">
+                <span className="text-cyan-400">{entry.prompt}</span>
+                <span> {entry.text}</span>
+              </div>
+            );
+          }
+          if (entry.type === "error") {
+            return (
+              <div key={idx} className="whitespace-pre-wrap leading-5 text-red-400">
+                {entry.text}
+              </div>
+            );
+          }
+          return (
+            <div key={idx} className="whitespace-pre-wrap leading-5">
+              {entry.text}
+            </div>
+          );
+        })}
         <div ref={bottomRef} />
       </div>
       <form
@@ -139,7 +166,7 @@ export function TerminalApp({ className, ...props }: TerminalAppProps) {
           setInputValue("");
         }}
       >
-        <span className="text-green-500 select-none">{promptText}</span>
+        <span className="text-cyan-400 select-none">{promptPath}</span>
         <input
           ref={inputRef}
           value={inputValue}
@@ -180,7 +207,7 @@ export function TerminalApp({ className, ...props }: TerminalAppProps) {
               }
             }
           }}
-          className="flex-1 bg-transparent text-green-300 placeholder:text-green-700/60 focus:outline-none"
+          className="flex-1 bg-transparent text-white placeholder:text-white/60 focus:outline-none"
           placeholder="Type a command..."
           aria-label="Terminal input"
           autoCapitalize="off"

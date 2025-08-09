@@ -4,7 +4,7 @@ import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { ComposeDialog } from "./ComposeDialog";
 import { MessageList } from "./MessageList";
-import { Archive, InboxIcon, Mail, Search, Send, Trash2 } from "lucide-react";
+import { Archive, Inbox, Mail, Search, Send, Trash2 } from "lucide-react";
 import type { EmailSummary, OrderBy } from "./types";
 
 import { Button } from "@/components/ui/button";
@@ -77,7 +77,7 @@ export function Sidebar(props: {
           className={cn(folderId === "inbox" && "bg-primary/10 border-primary/50")}
           size="iconLg"
         >
-          <Send className="size-4" />
+          <Inbox className="size-4" />
         </Button>
         <Button
           onClick={() => setFolderId("sent")}
