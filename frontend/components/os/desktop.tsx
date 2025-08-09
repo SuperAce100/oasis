@@ -2,21 +2,23 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { WindowContainer } from "./window";
 
 export interface DesktopProps extends React.HTMLAttributes<HTMLDivElement> {}
 
 export function Desktop({ className, children, ...props }: DesktopProps) {
   return (
     <div
-      data-window-container
       className={cn(
-        "relative w-full h-[calc(100vh-2.25rem)] mt-9", // account for 36px top bar height
+        "relative w-full h-full pt-8 pb-18",
         "bg-gradient-to-br from-muted/40 to-background",
         className
       )}
       {...props}
     >
-      {children}
+        <WindowContainer className="w-full h-full">
+            {children}
+        </WindowContainer>
     </div>
   );
 }
