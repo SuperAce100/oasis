@@ -55,8 +55,10 @@ export default function OS() {
             title="Mail"
             initialX={220}
             initialY={120}
-            initialWidth={640}
-            initialHeight={420}
+            initialWidth={800}
+            initialHeight={600}
+            minWidth={800}
+            minHeight={600}
             onClose={() => setIsMailOpen(false)}
           >
             <MailApp className="h-full" />

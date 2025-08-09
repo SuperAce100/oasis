@@ -8,9 +8,9 @@ import { formatRelative } from "./utils";
 export function MessageView({ message }: { message: EmailMessage }) {
   return (
     <div className="h-full flex flex-col">
-      <header className="border-b p-4">
+      <header className=" p-4">
         <div className="text-xs text-muted-foreground">From: {message.from}</div>
-        <h2 className="text-lg font-semibold">{message.subject}</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">{message.subject}</h2>
         <div className="mt-2 flex flex-wrap gap-2 text-xs">
           <Badge variant="outline">To: {message.to.join(", ")}</Badge>
           {message.cc && message.cc.length > 0 && (

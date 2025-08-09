@@ -13,7 +13,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Paperclip, Send } from "lucide-react";
+import { Loader2, Paperclip, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { postJSON } from "./utils";
 
@@ -90,8 +90,8 @@ export function ComposeDialog({ onSent }: { onSent: () => void | Promise<void> }
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" className="gap-2">
-          <Send className="size-4" /> Compose
+        <Button size="iconLg" className="gap-2">
+          <Plus className="size-4" />
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-2xl z-[900]">

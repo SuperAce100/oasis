@@ -3,10 +3,20 @@
 import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { ComposeDialog } from "./ComposeDialog";
-import { FolderButton } from "./FolderButton";
 import { MessageList } from "./MessageList";
-import { Archive, InboxIcon, Mail, Search, Trash2 } from "lucide-react";
+import { Archive, InboxIcon, Mail, Search, Send, Trash2 } from "lucide-react";
 import type { EmailSummary, OrderBy } from "./types";
+
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { cn } from "@/lib/utils";
 
 export function Sidebar(props: {
   query: string;
@@ -42,69 +52,72 @@ export function Sidebar(props: {
   } = props;
 
   return (
-    <aside className="col-span-3 border-r pr-2 overflow-hidden flex flex-col">
-      <div className="p-2 flex items-center gap-2">
+    <aside className="col-span-4 overflow-hidden flex flex-col">
+      <div className="px-2 py-2 flex items-center gap-2">
+        <div className="relative w-full">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+          <Input
+            placeholder="Search mail"
+            className="pl-8 rounded-xl"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
+      </div>
+      <nav className="px-2 pb-2 flex gap-2 justify-between">
         <ComposeDialog
           onSent={async () => {
             await onRefreshAfterSend();
             setFolderId("sent");
           }}
         />
-      </div>
-      <div className="px-2 pb-2 flex items-center gap-2">
-        <div className="relative w-full">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <Input
-            placeholder="Search mail"
-            className="pl-8"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </div>
-      </div>
-      <nav className="px-2 pb-2 grid grid-cols-2 gap-2">
-        <FolderButton
-          icon={<InboxIcon className="size-4" />}
-          active={folderId === "inbox"}
-          label="Inbox"
+        <Button
           onClick={() => setFolderId("inbox")}
-        />
-        <FolderButton
-          icon={<Mail className="size-4" />}
-          active={folderId === "sent"}
-          label="Sent"
+          variant="outline"
+          className={cn(folderId === "inbox" && "bg-primary/10 border-primary/50")}
+          size="iconLg"
+        >
+          <Send className="size-4" />
+        </Button>
+        <Button
           onClick={() => setFolderId("sent")}
-        />
-        <FolderButton
-          icon={<Archive className="size-4" />}
-          active={folderId === "archive"}
-          label="Archive"
+          variant="outline"
+          className={cn(folderId === "sent" && "bg-primary/10 border-primary/50")}
+          size="iconLg"
+        >
+          <Send className="size-4" />
+        </Button>
+        <Button
           onClick={() => setFolderId("archive")}
-        />
-        <FolderButton
-          icon={<Trash2 className="size-4" />}
-          active={folderId === "trash"}
-          label="Trash"
+          variant="outline"
+          className={cn(folderId === "archive" && "bg-primary/10 border-primary/50")}
+          size="iconLg"
+        >
+          <Archive className="size-4" />
+        </Button>
+        <Button
           onClick={() => setFolderId("trash")}
-        />
+          variant="outline"
+          className={cn(folderId === "trash" && "bg-primary/10 border-primary/50")}
+          size="iconLg"
+        >
+          <Trash2 className="size-4" />
+        </Button>
       </nav>
       <div className="px-2 pb-2 flex items-center gap-2 text-xs">
         <label className="flex items-center gap-2 select-none">
-          <input
-            type="checkbox"
-            checked={unreadOnly}
-            onChange={(e) => setUnreadOnly(e.target.checked)}
-          />
+          <Checkbox checked={unreadOnly} onCheckedChange={(checked) => setUnreadOnly(!!checked)} />
           Unread
         </label>
-        <select
-          className="text-xs rounded-md border bg-transparent px-2 py-1 ml-auto"
-          value={orderBy}
-          onChange={(e) => setOrderBy(e.target.value as OrderBy)}
-        >
-          <option value="receivedDateTime">Newest</option>
-          <option value="subject">Subject</option>
-        </select>
+        <Select value={orderBy} onValueChange={(value) => setOrderBy(value as OrderBy)}>
+          <SelectTrigger>
+            <SelectValue placeholder="Select an order" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="receivedDateTime">Newest</SelectItem>
+            <SelectItem value="subject">Subject</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
       <div className="overflow-auto px-2 pb-2">
         {isLoading ? (

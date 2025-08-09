@@ -35,7 +35,7 @@ export function MailApp({ className, ...props }: MailAppProps) {
   return (
     <div className={cn("w-full h-full", className)} {...props}>
       <Toaster richColors position="top-right" />
-      <div className="grid grid-cols-12 gap-3 h-full">
+      <div className="grid grid-cols-12 gap-3 h-full bg-background">
         <Sidebar
           query={query}
           setQuery={(q) => setQuery(q)}
@@ -57,7 +57,7 @@ export function MailApp({ className, ...props }: MailAppProps) {
             await refresh();
           }}
         />
-        <section className="col-span-9 overflow-hidden flex flex-col">
+        <section className="col-span-8 overflow-hidden flex flex-col">
           {selectedId ? (
             isReading ? (
               <div className="flex-1 grid place-items-center text-muted-foreground">
