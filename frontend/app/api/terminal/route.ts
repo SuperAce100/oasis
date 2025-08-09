@@ -247,7 +247,7 @@ export async function POST(req: Request) {
     // Delegate to backend terminal tool
     try {
       const result = await mcpClient.callTool<{
-        content: Array<{ type: string; data?: any; text?: string }>;
+        content: Array<{ type: string; data?: { stdout?: string; stderr?: string; exitCode?: number } | undefined; text?: string }>;
       }>("terminal.execute@v1", {
         command,
         // Map virtual cwd to sandbox filesystem

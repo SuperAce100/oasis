@@ -176,7 +176,7 @@ export async function POST(req: Request) {
       | { action: "list" }
       | { action: "call"; name?: string; arguments?: Record<string, unknown> };
 
-    if (!body || (body as any).action === undefined) {
+    if (!body || !("action" in body)) {
       return Response.json({ error: "Invalid input" }, { status: 400 });
     }
 
