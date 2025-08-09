@@ -1,0 +1,28 @@
+{
+  "name": "oasis-monorepo",
+  "version": "0.1.0",
+  "description": "Oasis Hub - Full-stack application with MCP server and frontend",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "install:all": "npm install && npm run install:backend && npm run install:frontend",
+    "install:backend": "cd backend && npm install",
+    "install:frontend": "cd frontend && npm install",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build:all": "npm run build:backend && npm run build:frontend",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "test:backend": "cd backend && npm test",
+    "test:all": "npm run test:backend",
+    "clean": "rm -rf backend/dist frontend/.next backend/node_modules frontend/node_modules node_modules",
+    "setup": "python scripts/setup.py"
+  },
+  "devDependencies": {},
+  "engines": {
+    "node": ">=18"
+  }
+}
