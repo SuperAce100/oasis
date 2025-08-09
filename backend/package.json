@@ -9,6 +9,9 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "vitest",
+    "test:unit": "vitest --run",
+    "test:integration": "node integration-tests/terminal-integration.test.js",
+    "test:all": "npm run test:unit && npm run test:integration",
     "clean": "rm -rf dist"
   },
   "dependencies": {

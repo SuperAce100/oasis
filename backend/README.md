@@ -14,6 +14,8 @@ A production-ready MCP (Model Context Protocol) server providing calendar genera
 
 ### 🧪 **Testing Status**
 - ✅ All unit tests passing (7/7)
+- ✅ Integration tests passing (19/20 scenarios)
+- ✅ Terminal endpoint fully validated
 - ✅ MCP protocol compliance verified
 - ✅ Input validation with AJV schemas
 - ✅ Error handling with typed responses
@@ -283,16 +285,42 @@ All endpoints return consistent error formats:
 
 ---
 
-## 🧪 Quick Testing
+## 🧪 Testing
 
-### Test the server is working:
+### Unit Tests
+Run the unit test suite (ICS utilities, etc.):
 ```bash
-# Run unit tests
-npm test
+npm test                # Watch mode
+npm run test:unit      # Run once
+```
 
-# Start server and test calendar generation
+### Integration Tests
+Run comprehensive terminal endpoint validation:
+```bash
+npm run test:integration
+```
+
+This integration test validates 20 different scenarios including:
+- ✅ Basic shell commands (echo, pwd, ls)
+- ✅ File operations (create, read, permissions)
+- ✅ System information (uname, ps, df, date)
+- ✅ Text processing (pipes, sort, grep)
+- ✅ Working directory changes
+- ✅ Error handling (non-existent files)
+- ✅ Security blocking (sudo, rm -rf /)
+- ✅ Network operations (ping)
+
+### Run All Tests
+```bash
+npm run test:all       # Unit + Integration
+```
+
+### Manual Testing
+```bash
+# Start server
 npm run dev
-# In another terminal:
+
+# In another terminal, test calendar generation:
 echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | npm run dev
 ```
 
@@ -300,7 +328,9 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | npm run dev
 - ✅ Server spawns successfully 
 - ✅ Initialize handshake works
 - ✅ Calendar generation returns valid ICS
+- ✅ Terminal execution works with cwd support
 - ✅ Error handling for invalid inputs
+- ✅ Security command blocking
 - ✅ Tool availability based on environment tokens
 
 ---
