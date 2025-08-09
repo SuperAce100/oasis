@@ -25,7 +25,7 @@ export function CalendarApp({ className, ...props }: CalendarAppProps) {
     const fetchEvents = async () => {
       setLoading(true);
       try {
-        const res = await fetch("/api/calendar/calendar.list@v1", {
+        const res = await fetch("/api/calendar/list", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ limit: 200, orderBy: "start" }),
@@ -54,7 +54,7 @@ export function CalendarApp({ className, ...props }: CalendarAppProps) {
   const handleEventAdd = async (event: CalendarEvent) => {
     // Create on server to get canonical id
     try {
-      const res = await fetch("/api/calendar/calendar.create@v1", {
+      const res = await fetch("/api/calendar/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -92,7 +92,7 @@ export function CalendarApp({ className, ...props }: CalendarAppProps) {
 
   const handleEventDelete = async (eventId: string) => {
     try {
-      await fetch("/api/calendar/calendar.delete@v1", {
+      await fetch("/api/calendar/delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eventId }),

@@ -8,6 +8,7 @@ import { Window } from "@/components/os/window";
 import { TerminalApp } from "@/components/apps/terminal";
 import { CalendarApp } from "@/components/apps/calendar";
 import { MailApp } from "@/components/apps/mail";
+import Logo from "@/components/logo";
 
 export default function OS() {
   const [isTerminalOpen, setIsTerminalOpen] = React.useState(false);
@@ -18,9 +19,13 @@ export default function OS() {
     <main className="relative min-h-screen bg-background">
       <TopBar />
       <Desktop>
-        <Window title="Welcome" initialX={32} initialY={32} initialWidth={420} initialHeight={260}>
-          <div className="prose prose-sm dark:prose-invert max-w-none">
-            <p>Welcome to Oasis OS. Drag, resize, minimize, and maximize windows.</p>
+        <Window title="Welcome" initialX={32} initialY={32} initialWidth={450} initialHeight={450}>
+          <div className="prose prose-sm dark:prose-invert max-w-none flex flex-col items-center justify-center h-full text-stone-800">
+            <Logo className="w-32 h-32" />
+            <h1 className="text-9xl font-semibold tracking-tight">Oasis</h1>
+            <p className="text-2xl text-balance text-muted-foreground">
+              The AI native operating system.
+            </p>
           </div>
         </Window>
 
