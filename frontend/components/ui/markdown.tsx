@@ -1,8 +1,8 @@
 import ReactMarkdown, { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
-import { CodeBlock } from "../code-block/code-block";
-import { Button } from "../button/button";
+import { CodeBlock } from "./code-block";
+import { Button } from "./button";
 
 const components: Components = {
   // Text components
