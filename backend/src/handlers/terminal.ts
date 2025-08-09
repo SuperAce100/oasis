@@ -1,26 +1,33 @@
 import { spawn } from 'child_process';
+import { JSONSchemaType } from 'ajv';
 import { validateOrThrow } from '../utils/ajv.js';
 import { BAD_REQUEST, INTERNAL_ERROR } from '../utils/errors.js';
 import type { LogContext } from '../utils/logger.js';
 import { emitProgress } from '../utils/logger.js';
 
 /**
+ * Interface for terminal.execute@v1 arguments
+ */
+export interface TerminalExecuteArgs {
+  command: string;
+  cwd?: string;
+}
+
+/**
  * Schema for terminal.execute@v1
  */
-const TERMINAL_EXECUTE_SCHEMA = {
+const TERMINAL_EXECUTE_SCHEMA: JSONSchemaType<TerminalExecuteArgs> = {
   type: 'object',
   properties: {
     command: {
       type: 'string',
-      description: 'Shell command to execute',
       minLength: 1,
       maxLength: 500
     },
     cwd: {
       type: 'string',
-      description: 'Working directory for command execution (optional)',
       maxLength: 200,
-      default: '/'
+      nullable: true
     }
   },
   required: ['command'],
@@ -39,10 +46,10 @@ const BLOCKED_COMMANDS = [
  * Handle terminal.execute@v1 - Execute command locally (hackathon demo)
  */
 export async function handleTerminalExecute(args: unknown, context: LogContext) {
-  emitProgress(context, 'Validating command');
-  validateOrThrow(TERMINAL_EXECUTE_SCHEMA, args, 'terminal.execute@v1');
+  emitProgress(1, 3, 'validating command');
+  const validatedArgs = validateOrThrow(TERMINAL_EXECUTE_SCHEMA, args, 'terminal.execute@v1');
   
-  const { command, cwd = '/' } = args as { command: string; cwd?: string };
+  const { command, cwd = '/' } = validatedArgs;
 
   // Basic security check
   for (const blocked of BLOCKED_COMMANDS) {
@@ -51,7 +58,7 @@ export async function handleTerminalExecute(args: unknown, context: LogContext) 
     }
   }
 
-  emitProgress(context, 'Executing command');
+  emitProgress(2, 3, 'executing command');
 
   return new Promise((resolve, reject) => {
     // For hackathon demo: use local execution (Docker can be added later)
@@ -69,6 +76,7 @@ export async function handleTerminalExecute(args: unknown, context: LogContext) 
     });
 
     child.on('close', (exitCode) => {
+      emitProgress(3, 3, 'command completed');
       resolve({
         content: [{
           type: 'json',
