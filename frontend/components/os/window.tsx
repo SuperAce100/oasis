@@ -235,7 +235,7 @@ export function Window({
     hidden ? null : (
     <div
       className={cn(
-        "absolute select-none rounded-xl border border-border bg-white shadow-lg shadow-border/60 overflow-hidden",
+        "absolute select-none rounded-xl border border-border bg-white/70 backdrop-blur-lg shadow-lg overflow-hidden",
         animateNext && !isInteracting && "transition-all duration-300 ease-out",
         isDragging && "cursor-grabbing",
         className
@@ -246,7 +246,7 @@ export function Window({
     >
       <div
         className={cn(
-          "flex items-center justify-between px-3 py-2 bg-muted text-muted-foreground cursor-grab active:cursor-grabbing"
+          "flex items-center justify-between px-3 py-2 bg-white/40 text-muted-foreground cursor-grab active:cursor-grabbing"
         )}
         onPointerDown={onHeaderPointerDown}
         onDoubleClick={(e) => {

@@ -11,7 +11,7 @@ export function Desktop({ className, children, ...props }: DesktopProps) {
     <div
       className={cn(
         "relative w-full h-full pt-8 pb-18",
-        "bg-gradient-to-br from-muted/40 to-background",
+        "bg-[url('/background.jpg')] bg-cover bg-center",
         className
       )}
       {...props}

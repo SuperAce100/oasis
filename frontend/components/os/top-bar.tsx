@@ -21,13 +21,13 @@ export function TopBar({ className, title = "Oasis OS", ...props }: TopBarProps)
   return (
     <div
       className={cn(
-        "fixed top-0 left-0 right-0 z-50 h-8 border-b border-border bg-muted/70 text-muted-foreground",
-        "backdrop-blur supports-[backdrop-filter]:bg-muted/50",
+        "fixed top-0 left-0 right-0 z-50 h-8 bg-foreground/10 text-white",
+        "backdrop-blur supports-[backdrop-filter]:bg-foreground/20",
         "flex items-center px-3"
       , className)}
       {...props}
     >
-      <div className="flex items-center gap-2 text-foreground">
+      <div className="flex items-center gap-2">
         <Logo className="size-4" />
         <span className="text0-md font-semibold tracking-tight">{title}</span>
       </div>
