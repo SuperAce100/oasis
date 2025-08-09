@@ -1,12 +1,24 @@
 // Terminal command processing API
-// Accepts JSON: { input: string, cwdParts?: string[], fs?: DirNodeJSON }
-// Returns JSON: { stdout: string[], cwdParts: string[], fs: DirNodeJSON }
+// Simplified stateless request signature; server maintains FS and CWD per session.
+// Accepts JSON: { command: string, cwd?: string }
+// Returns JSON: { stdout: string[], cwd: string }
 
 export const dynamic = "force-dynamic";
 
 type FileNodeJSON = { type: "file"; content: string };
 type DirNodeJSON = { type: "dir"; children: Record<string, NodeJSON> };
 type NodeJSON = FileNodeJSON | DirNodeJSON;
+
+type Session = {
+  fs: DirNodeJSON;
+  cwdParts: string[];
+};
+
+const GLOBAL_KEY = "__OASIS_TERMINAL_SESSIONS__" as const;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const globalAny = globalThis as any;
+const SESSIONS: Map<string, Session> = globalAny[GLOBAL_KEY] ?? new Map<string, Session>();
+globalAny[GLOBAL_KEY] = SESSIONS;
 
 function isDir(node: NodeJSON | undefined): node is DirNodeJSON {
   return Boolean(node) && (node as NodeJSON).type === "dir";
@@ -44,6 +56,12 @@ function createInitialFileSystem(): DirNodeJSON {
   };
 }
 
+function partsFromAbsolutePath(path: string): string[] {
+  const clean = path.trim();
+  if (!clean || clean === "/") return [];
+  return clean.split("/").filter(Boolean);
+}
+
 function normalizeAndSplitPath(input: string): { parts: string[]; isAbsolute: boolean } {
   const isAbsolute = input.startsWith("/");
   const rawParts = input.split("/").filter((p) => p.length > 0);
@@ -73,7 +91,7 @@ function getNode(root: DirNodeJSON, pathParts: string[]): NodeJSON | undefined {
   let current: NodeJSON = root;
   for (const segment of pathParts) {
     if (!isDir(current)) return undefined;
-    const child = current.children[segment];
+    const child: NodeJSON | undefined = (current.children as Record<string, NodeJSON>)[segment];
     if (!child) return undefined;
     current = child;
   }
@@ -94,10 +112,6 @@ function getParentAndName(
 
 function formatPath(parts: string[]): string {
   const pathStr = "/" + parts.join("/");
-  if (parts.length >= 2 && parts[0] === "home" && parts[1] === "oasis") {
-    const remainder = parts.slice(2);
-    return "~" + (remainder.length ? "/" + remainder.join("/") : "");
-  }
   return pathStr;
 }
 
@@ -254,24 +268,33 @@ function command_whoami(): string[] {
 
 export async function POST(req: Request) {
   try {
-    const {
-      input,
-      cwdParts: cwdFromClient,
-      fs: fsFromClient,
-    } = (await req.json()) as {
-      input: string;
-      cwdParts?: string[];
-      fs?: DirNodeJSON;
+    const { command, cwd } = (await req.json()) as {
+      command: string;
+      cwd?: string; // absolute path
     };
 
-    if (typeof input !== "string") {
+    if (typeof command !== "string") {
       return Response.json({ error: "Invalid input" }, { status: 400 });
     }
 
-    let fs: DirNodeJSON = fsFromClient ?? createInitialFileSystem();
-    let cwdParts: string[] = cwdFromClient ?? ["home", "oasis"];
+    // Acquire or create session
+    const cookieHeader = req.headers.get("cookie") ?? "";
+    const existing = /term_session=([^;]+)/.exec(cookieHeader)?.[1];
+    let sessionId = existing ?? crypto.randomUUID();
+    let session = SESSIONS.get(sessionId);
+    if (!session) {
+      session = { fs: createInitialFileSystem(), cwdParts: ["home", "oasis"] };
+      SESSIONS.set(sessionId, session);
+    }
+    // If client sends cwd, trust it (absolute path), else use session
+    if (typeof cwd === "string" && cwd.startsWith("/")) {
+      session.cwdParts = partsFromAbsolutePath(cwd);
+    }
 
-    const args = tokenize(input.trim());
+    const fs = session.fs;
+    let cwdParts = session.cwdParts;
+
+    const args = tokenize(command.trim());
     const [cmd, ...rest] = args;
     let stdout: string[] = [];
 
@@ -316,7 +339,17 @@ export async function POST(req: Request) {
         stdout = [`${cmd}: command not found`];
     }
 
-    return Response.json({ stdout, cwdParts, fs });
+    // Persist new cwd in session
+    session.cwdParts = cwdParts;
+
+    const res = Response.json({ stdout, cwd: formatPath(cwdParts) });
+    if (!existing) {
+      res.headers.set(
+        "Set-Cookie",
+        `term_session=${sessionId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`
+      );
+    }
+    return res;
   } catch (err) {
     return Response.json({ error: "Bad Request" }, { status: 400 });
   }

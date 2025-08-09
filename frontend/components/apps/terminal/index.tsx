@@ -14,12 +14,7 @@ export function TerminalApp({ className, ...props }: TerminalAppProps) {
   const [inputValue, setInputValue] = React.useState<string>("");
   const [commandHistory, setCommandHistory] = React.useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = React.useState<number>(-1);
-  // Server-backed state snapshot (mirrors API's JSON shape)
-  type FileNodeJSON = { type: "file"; content: string };
-  type DirNodeJSON = { type: "dir"; children: Record<string, NodeJSON> };
-  type NodeJSON = FileNodeJSON | DirNodeJSON;
-  const [serverFs, setServerFs] = React.useState<DirNodeJSON | null>(null);
-  const [cwdParts, setCwdParts] = React.useState<string[]>(["home", "oasis"]);
+  const [cwd, setCwd] = React.useState<string>("/home/oasis");
 
   const outputRef = React.useRef<HTMLDivElement | null>(null);
   const bottomRef = React.useRef<HTMLDivElement | null>(null);
@@ -37,17 +32,7 @@ export function TerminalApp({ className, ...props }: TerminalAppProps) {
   }, [outputLines]);
 
   // ---------- Prompt / Output helpers ----------
-  function formatPath(parts: string[]): string {
-    const pathStr = "/" + parts.join("/");
-    if (parts.length >= 2 && parts[0] === "home" && parts[1] === "oasis") {
-      const remainder = parts.slice(2);
-      return "~" + (remainder.length ? "/" + remainder.join("/") : "");
-    }
-    return pathStr;
-  }
-
-  // ---------- Input / Output helpers ----------
-  const promptText = React.useMemo(() => `oasis@os:${formatPath(cwdParts)}$`, [cwdParts]);
+  const promptText = React.useMemo(() => `oasis@os:${cwd}$`, [cwd]);
   // Basic tokenizer for client-side helpers (used for Tab-completion parsing only)
   function tokenize(input: string): string[] {
     const tokens: string[] = [];
@@ -77,33 +62,8 @@ export function TerminalApp({ className, ...props }: TerminalAppProps) {
     return tokens;
   }
 
-  // Client-side path completion helper that queries server state snapshot
-  function completePath(partial: string): { completed?: string; options?: string[] } {
-    const fs = serverFs;
-    if (!fs) return {};
-    const isAbsolute = partial.startsWith("/");
-    const pieces = partial.split("/");
-    const prefix = pieces.pop() ?? "";
-    const dirParts = isAbsolute ? pieces.filter(Boolean) : [...cwdParts, ...pieces.filter(Boolean)];
-
-    // Traverse
-    let node: NodeJSON | undefined = fs;
-    for (const seg of dirParts) {
-      if (!node || node.type !== "dir") return {};
-      node = node.children[seg];
-    }
-    if (!node || node.type !== "dir") return {};
-    const candidates = Object.keys(node.children).filter((n) => n.startsWith(prefix));
-    if (candidates.length === 1) {
-      const name = candidates[0];
-      const child = node.children[name];
-      const base = partial.endsWith("/")
-        ? partial
-        : partial.slice(0, partial.lastIndexOf("/") + 1) || "";
-      const completed = (base || "") + name + (child?.type === "dir" ? "/" : "");
-      return { completed };
-    }
-    if (candidates.length > 1) return { options: candidates };
+  // Tab completion disabled in simplified mode
+  function completePath(): { completed?: string; options?: string[] } {
     return {};
   }
 
@@ -131,20 +91,15 @@ export function TerminalApp({ className, ...props }: TerminalAppProps) {
       return;
     }
 
-    // POST to API to get stdout and updated virtual FS/cwd
+    // POST to API to get stdout and updated cwd
     try {
       const res = await fetch("/api/terminal", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input, cwdParts, fs: serverFs ?? undefined }),
+        body: JSON.stringify({ command: input, cwd }),
       });
       if (!res.ok) throw new Error("Request failed");
-      const data = (await res.json()) as {
-        stdout?: string[];
-        cwdParts?: string[];
-        fs?: DirNodeJSON;
-        error?: string;
-      };
+      const data = (await res.json()) as { stdout?: string[]; cwd?: string; error?: string };
       if (data.error) {
         printLine(data.error);
         return;
@@ -152,8 +107,7 @@ export function TerminalApp({ className, ...props }: TerminalAppProps) {
       if (Array.isArray(data.stdout) && data.stdout.length > 0) {
         printLines(data.stdout);
       }
-      if (Array.isArray(data.cwdParts)) setCwdParts(data.cwdParts);
-      if (data.fs) setServerFs(data.fs);
+      if (typeof data.cwd === "string") setCwd(data.cwd);
     } catch (e) {
       printLine("error: failed to execute command");
     }
@@ -221,14 +175,7 @@ export function TerminalApp({ className, ...props }: TerminalAppProps) {
                 const [cmd, ...rest] = args;
                 const commandsExpectingPath = new Set(["cd", "ls", "cat", "mkdir", "touch", "rm"]);
                 if (commandsExpectingPath.has(cmd)) {
-                  const partial = rest[0] ?? "";
-                  const { completed, options } = completePath(partial);
-                  if (completed) {
-                    const next = [cmd, completed, ...rest.slice(1)].join(" ");
-                    setInputValue(next + (completed.endsWith("/") ? "" : ""));
-                  } else if (options && options.length > 0) {
-                    printLines([options.join("  ")]);
-                  }
+                  // Tab completion disabled in simplified server mode
                 }
               }
             }
