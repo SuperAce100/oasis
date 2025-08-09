@@ -1,0 +1,37 @@
+[project]
+name = "oasis"
+version = "0.1.0"
+description = "Oasis Hub - Full-stack application with MCP server and frontend"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    # Add any Python dependencies here if needed
+    # For example, if you want to add Python tooling or scripts
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = []
+
+[tool.black]
+line-length = 88
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true

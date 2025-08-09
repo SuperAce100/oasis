@@ -1,0 +1,347 @@
+#!/usr/bin/env node
+
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+  Tool,
+} from '@modelcontextprotocol/sdk/types.js';
+import { config } from 'dotenv';
+import { randomUUID } from 'crypto';
+
+import { handleCalendarCreateICS } from './handlers/calendar.js';
+import { handleGitHubCreateIssue } from './handlers/github.js';
+import { handleNotionGetPage } from './handlers/notion.js';
+import { handleStatusGetJob, handleStatusListJobs } from './handlers/status.js';
+import { handleTerminalExecute } from './handlers/terminal.js';
+import { logStart, logSuccess, logError, LogContext } from './utils/logger.js';
+import { MCPError } from './utils/errors.js';
+
+// Load environment variables
+config();
+
+// Environment configuration
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+const NOTION_TOKEN = process.env.NOTION_TOKEN;
+
+// Server instance
+const server = new Server(
+  {
+    name: 'oasis-hub',
+    version: '0.1.0',
+  },
+  {
+    capabilities: {
+      tools: {},
+      resources: {},
+    },
+  }
+);
+
+// Tool definitions
+const tools: Tool[] = [];
+
+// Always register calendar tool (no external dependencies)
+tools.push({
+  name: 'calendar.create_ics@v1',
+  description: 'Create an ICS calendar file with events. No external API required.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      title: {
+        type: 'string',
+        description: 'Title of the calendar',
+      },
+      events: {
+        type: 'array',
+        description: 'Array of events to include in the calendar',
+        items: {
+          type: 'object',
+          properties: {
+            summary: {
+              type: 'string',
+              description: 'Event title/summary',
+            },
+            start: {
+              type: 'string',
+              description: 'Event start time (ISO 8601 format)',
+            },
+            end: {
+              type: 'string',
+              description: 'Event end time (ISO 8601 format)',
+            },
+            description: {
+              type: 'string',
+              description: 'Event description (optional)',
+            },
+            location: {
+              type: 'string',
+              description: 'Event location (optional)',
+            },
+          },
+          required: ['summary', 'start', 'end'],
+        },
+        minItems: 1,
+      },
+      prodid: {
+        type: 'string',
+        description: 'Product identifier for the calendar (optional)',
+      },
+    },
+    required: ['title', 'events'],
+  },
+});
+
+// Conditionally register GitHub tool
+if (GITHUB_TOKEN) {
+  tools.push({
+    name: 'github.create_issue@v1',
+    description: 'Create a new issue in a GitHub repository',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        owner: {
+          type: 'string',
+          description: 'Repository owner/organization name',
+        },
+        repo: {
+          type: 'string',
+          description: 'Repository name',
+        },
+        title: {
+          type: 'string',
+          description: 'Issue title',
+          maxLength: 256,
+        },
+        body: {
+          type: 'string',
+          description: 'Issue body/description (optional)',
+        },
+        labels: {
+          type: 'array',
+          description: 'Array of label names to apply (optional)',
+          items: {
+            type: 'string',
+          },
+        },
+        assignees: {
+          type: 'array',
+          description: 'Array of usernames to assign (optional)',
+          items: {
+            type: 'string',
+          },
+        },
+      },
+      required: ['owner', 'repo', 'title'],
+    },
+  });
+}
+
+// Conditionally register Notion tool
+if (NOTION_TOKEN) {
+  tools.push({
+    name: 'notion.get_page@v1',
+    description: 'Retrieve a Notion page by ID with optional children blocks',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pageId: {
+          type: 'string',
+          description: 'Notion page ID (with or without dashes)',
+          pattern: '^[a-f0-9]{8}-?[a-f0-9]{4}-?[a-f0-9]{4}-?[a-f0-9]{4}-?[a-f0-9]{12}$',
+        },
+        includeChildren: {
+          type: 'boolean',
+          description: 'Whether to include child blocks (optional, default: false)',
+        },
+      },
+      required: ['pageId'],
+    },
+  });
+}
+
+// Always register status tools
+tools.push({
+  name: 'status.get_job@v1',
+  description: 'Get the status of a job by ID',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      jobId: {
+        type: 'string',
+        description: 'Unique job identifier',
+      },
+    },
+    required: ['jobId'],
+  },
+});
+
+tools.push({
+  name: 'status.list_jobs@v1',
+  description: 'List jobs with optional filtering',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      status: {
+        type: 'string',
+        enum: ['pending', 'running', 'completed', 'failed'],
+        description: 'Filter by job status (optional)',
+      },
+      limit: {
+        type: 'number',
+        minimum: 1,
+        maximum: 100,
+        description: 'Maximum number of jobs to return (optional, default: 20)',
+      },
+    },
+  },
+});
+
+// Terminal execution tool
+tools.push({
+  name: 'terminal.execute@v1',
+  description: 'Execute shell commands locally. Returns stdout, stderr, and exit code.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      command: {
+        type: 'string',
+        description: 'Shell command to execute (e.g., "ls -la", "echo hello")',
+        minLength: 1,
+        maxLength: 500,
+      },
+      cwd: {
+        type: 'string',
+        description: 'Working directory for command execution (optional, defaults to "/")',
+        maxLength: 200,
+      },
+    },
+    required: ['command'],
+  },
+});
+
+// Wrapper function for consistent logging and error handling
+function wrap<T extends (...args: any[]) => Promise<any>>(
+  toolName: string,
+  handler: T
+): (args: unknown) => Promise<any> {
+  return async (args: unknown) => {
+    const traceId = randomUUID();
+    const context: LogContext = { traceId };
+    const startTime = Date.now();
+
+    try {
+      logStart(context, toolName, args);
+      
+      // Inject context as second parameter for handlers
+      const result = await handler(args, context);
+      
+      const latencyMs = Date.now() - startTime;
+      logSuccess(context, toolName, latencyMs);
+      
+      return result;
+    } catch (error) {
+      const latencyMs = Date.now() - startTime;
+      logError(context, toolName, error as Error, latencyMs);
+      throw error;
+    }
+  };
+}
+
+// Set up request handlers
+server.setRequestHandler(ListToolsRequestSchema, async () => {
+  return { tools };
+});
+
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  const { name, arguments: args } = request.params;
+
+  try {
+    switch (name) {
+      case 'calendar.create_ics@v1':
+        return await wrap('calendar.create_ics@v1', handleCalendarCreateICS)(args);
+
+      case 'github.create_issue@v1':
+        if (!GITHUB_TOKEN) {
+          throw new MCPError('GitHub token not configured', 'UNAUTHORIZED');
+        }
+        return await wrap('github.create_issue@v1', 
+          async (args: unknown, context: LogContext) => 
+            handleGitHubCreateIssue(args, context, GITHUB_TOKEN)
+        )(args);
+
+      case 'notion.get_page@v1':
+        if (!NOTION_TOKEN) {
+          throw new MCPError('Notion token not configured', 'UNAUTHORIZED');
+        }
+        return await wrap('notion.get_page@v1', 
+          async (args: unknown, context: LogContext) => 
+            handleNotionGetPage(args, context, NOTION_TOKEN)
+        )(args);
+
+      case 'status.get_job@v1':
+        return await wrap('status.get_job@v1', handleStatusGetJob)(args);
+
+      case 'status.list_jobs@v1':
+        return await wrap('status.list_jobs@v1', handleStatusListJobs)(args);
+
+      case 'terminal.execute@v1':
+        return await wrap('terminal.execute@v1', handleTerminalExecute)(args);
+
+      default:
+        throw new MCPError(`Unknown tool: ${name}`, 'BAD_REQUEST');
+    }
+  } catch (error) {
+    if (error instanceof MCPError) {
+      throw error;
+    }
+    // Convert unexpected errors to MCPError
+    throw new MCPError(
+      `Internal error in ${name}: ${error instanceof Error ? error.message : String(error)}`,
+      'INTERNAL_ERROR'
+    );
+  }
+});
+
+// Start the server
+async function main() {
+  const transport = new StdioServerTransport();
+  
+  // Log startup information (to stderr to avoid interfering with stdio protocol)
+  console.error(`[STARTUP] Oasis Hub MCP Server v0.1.0`);
+  console.error(`[STARTUP] Registered tools: ${tools.map(t => t.name).join(', ')}`);
+  console.error(`[STARTUP] GitHub integration: ${GITHUB_TOKEN ? 'enabled' : 'disabled'}`);
+  console.error(`[STARTUP] Notion integration: ${NOTION_TOKEN ? 'enabled' : 'disabled'}`);
+  console.error(`[STARTUP] Starting stdio transport...`);
+  
+  await server.connect(transport);
+}
+
+// Handle uncaught errors
+process.on('uncaughtException', (error) => {
+  console.error('[FATAL] Uncaught exception:', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[FATAL] Unhandled rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
+// Graceful shutdown
+process.on('SIGINT', () => {
+  console.error('[SHUTDOWN] Received SIGINT, shutting down gracefully...');
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  console.error('[SHUTDOWN] Received SIGTERM, shutting down gracefully...');
+  process.exit(0);
+});
+
+// Run the server
+main().catch((error) => {
+  console.error('[FATAL] Failed to start server:', error);
+  process.exit(1);
+});
