@@ -14,6 +14,7 @@ import { handleCalendarCreateICS } from './handlers/calendar.js';
 import { handleGitHubCreateIssue } from './handlers/github.js';
 import { handleNotionGetPage } from './handlers/notion.js';
 import { handleStatusGetJob, handleStatusListJobs } from './handlers/status.js';
+import { handleTerminalExecute } from './handlers/terminal.js';
 import { logStart, logSuccess, logError, LogContext } from './utils/logger.js';
 import { MCPError } from './utils/errors.js';
 
@@ -197,6 +198,29 @@ tools.push({
   },
 });
 
+// Terminal execution tool
+tools.push({
+  name: 'terminal.execute@v1',
+  description: 'Execute shell commands locally. Returns stdout, stderr, and exit code.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      command: {
+        type: 'string',
+        description: 'Shell command to execute (e.g., "ls -la", "echo hello")',
+        minLength: 1,
+        maxLength: 500,
+      },
+      cwd: {
+        type: 'string',
+        description: 'Working directory for command execution (optional, defaults to "/")',
+        maxLength: 200,
+      },
+    },
+    required: ['command'],
+  },
+});
+
 // Wrapper function for consistent logging and error handling
 function wrap<T extends (...args: any[]) => Promise<any>>(
   toolName: string,
@@ -261,6 +285,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'status.list_jobs@v1':
         return await wrap('status.list_jobs@v1', handleStatusListJobs)(args);
+
+      case 'terminal.execute@v1':
+        return await wrap('terminal.execute@v1', handleTerminalExecute)(args);
 
       default:
         throw new MCPError(`Unknown tool: ${name}`, 'BAD_REQUEST');
