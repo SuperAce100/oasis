@@ -1,119 +1,170 @@
-// Terminal command processing API
-// Simplified stateless request signature; server maintains FS and CWD per session.
+// Terminal proxy API -> delegates to backend MCP server terminal.execute@v1
 // Accepts JSON: { command: string, cwd?: string }
-// Returns JSON: { stdout: string[], cwd: string }
+// Returns JSON: { stdout: string[], cwd: string } or { error: string }
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
-type FileNodeJSON = { type: "file"; content: string };
-type DirNodeJSON = { type: "dir"; children: Record<string, NodeJSON> };
-type NodeJSON = FileNodeJSON | DirNodeJSON;
+import type { ChildProcessWithoutNullStreams } from "node:child_process";
+import { spawn } from "node:child_process";
+import * as fs from "node:fs";
+import * as path from "node:path";
 
-type Session = {
-  fs: DirNodeJSON;
-  cwdParts: string[];
+type JsonRpcRequest = {
+  jsonrpc: "2.0";
+  id: number;
+  method: string;
+  params?: Record<string, unknown>;
 };
 
-const GLOBAL_KEY = "__OASIS_TERMINAL_SESSIONS__" as const;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const globalAny = globalThis as any;
-const SESSIONS: Map<string, Session> = globalAny[GLOBAL_KEY] ?? new Map<string, Session>();
-globalAny[GLOBAL_KEY] = SESSIONS;
+type JsonRpcSuccess = {
+  jsonrpc: "2.0";
+  id: number;
+  result: unknown;
+};
 
-function isDir(node: NodeJSON | undefined): node is DirNodeJSON {
-  return Boolean(node) && (node as NodeJSON).type === "dir";
-}
-function isFile(node: NodeJSON | undefined): node is FileNodeJSON {
-  return Boolean(node) && (node as NodeJSON).type === "file";
-}
+type JsonRpcError = {
+  jsonrpc: "2.0";
+  id: number | null;
+  error: { code?: number; message: string; data?: unknown };
+};
 
-function createInitialFileSystem(): DirNodeJSON {
-  return {
-    type: "dir",
-    children: {
-      home: {
-        type: "dir",
-        children: {
-          oasis: {
-            type: "dir",
-            children: {
-              documents: {
-                type: "dir",
-                children: {
-                  "readme.txt": {
-                    type: "file",
-                    content: "Welcome to Oasis OS! This is a demo file.\n",
-                  },
-                },
-              },
-              "notes.txt": { type: "file", content: "Some quick notes\n" },
-            },
+type Pending = {
+  resolve: (value: JsonRpcSuccess) => void;
+  reject: (reason: Error) => void;
+};
+
+class MCPClient {
+  private process: ChildProcessWithoutNullStreams | null = null;
+  private nextId = 1;
+  private initialized = false;
+  private readonly pending = new Map<number, Pending>();
+  private readonly stdoutBuffer: string[] = [];
+
+  private getBackendDir(): string {
+    // Resolve backend directory relative to frontend
+    const candidate = path.resolve(process.cwd(), "..", "backend");
+    return candidate;
+  }
+
+  private ensureStarted(): Promise<void> {
+    if (this.process && this.initialized) return Promise.resolve();
+
+    return new Promise((resolve, reject) => {
+      try {
+        const backendDir = this.getBackendDir();
+        const distEntry = path.join(backendDir, "dist", "index.js");
+
+        let proc: ChildProcessWithoutNullStreams;
+        if (fs.existsSync(distEntry)) {
+          proc = spawn("node", [distEntry], { cwd: backendDir, stdio: ["pipe", "pipe", "pipe"] });
+        } else {
+          // Fallback to dev mode
+          proc = spawn("pnpm", ["run", "dev"], {
+            cwd: backendDir,
+            stdio: ["pipe", "pipe", "pipe"],
+          });
+        }
+
+        this.process = proc;
+
+        proc.stdout.setEncoding("utf8");
+        proc.stdout.on("data", (chunk: string) => {
+          const parts = (this.stdoutBuffer.pop() ?? "") + chunk;
+          const lines = parts.split("\n");
+          // keep last partial line in buffer
+          this.stdoutBuffer.push(lines.pop() ?? "");
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith("{")) continue; // ignore non-JSON logs
+            try {
+              const msg = JSON.parse(trimmed) as JsonRpcSuccess | JsonRpcError;
+              if ("id" in msg && msg.id != null) {
+                const pending = this.pending.get(msg.id as number);
+                if (pending) {
+                  if ((msg as JsonRpcError).error) {
+                    const err = (msg as JsonRpcError).error;
+                    pending.reject(new Error(err.message));
+                  } else {
+                    pending.resolve(msg as JsonRpcSuccess);
+                  }
+                  this.pending.delete(msg.id as number);
+                }
+              }
+            } catch {
+              // ignore
+            }
+          }
+        });
+
+        proc.stderr.setEncoding("utf8");
+        proc.stderr.on("data", () => {
+          // Intentionally ignore backend stderr logs to avoid polluting API output
+        });
+
+        proc.on("error", (err) => {
+          reject(
+            new Error(`Backend process error: ${err instanceof Error ? err.message : String(err)}`)
+          );
+        });
+
+        // Send initialize
+        const initId = this.nextId++;
+        this.send({
+          jsonrpc: "2.0",
+          id: initId,
+          method: "initialize",
+          params: {
+            protocolVersion: "2024-11-05",
+            capabilities: {},
+            clientInfo: { name: "oasis-frontend", version: "1.0.0" },
           },
-        },
-      },
-      tmp: { type: "dir", children: {} },
-    },
-  };
-}
+        });
 
-function partsFromAbsolutePath(path: string): string[] {
-  const clean = path.trim();
-  if (!clean || clean === "/") return [];
-  return clean.split("/").filter(Boolean);
-}
-
-function normalizeAndSplitPath(input: string): { parts: string[]; isAbsolute: boolean } {
-  const isAbsolute = input.startsWith("/");
-  const rawParts = input.split("/").filter((p) => p.length > 0);
-  const parts: string[] = [];
-  for (const p of rawParts) {
-    if (p === ".") continue;
-    if (p === "..") {
-      if (parts.length > 0) parts.pop();
-      continue;
-    }
-    parts.push(p);
+        this.pending.set(initId, {
+          resolve: () => {
+            this.initialized = true;
+            resolve();
+          },
+          reject: (e) => reject(e),
+        });
+      } catch (e) {
+        reject(e as Error);
+      }
+    });
   }
-  return { parts, isAbsolute };
-}
 
-function resolvePath(cwd: string[], pathLike: string): string[] {
-  const { parts, isAbsolute } = normalizeAndSplitPath(pathLike);
-  const base = isAbsolute ? [] : [...cwd];
-  for (const part of parts) {
-    if (part === "..") base.pop();
-    else if (part !== ".") base.push(part);
+  private send(payload: JsonRpcRequest) {
+    if (!this.process) throw new Error("Backend process not started");
+    this.process.stdin.write(JSON.stringify(payload) + "\n");
   }
-  return base;
-}
 
-function getNode(root: DirNodeJSON, pathParts: string[]): NodeJSON | undefined {
-  let current: NodeJSON = root;
-  for (const segment of pathParts) {
-    if (!isDir(current)) return undefined;
-    const child: NodeJSON | undefined = (current.children as Record<string, NodeJSON>)[segment];
-    if (!child) return undefined;
-    current = child;
+  async callTool<T = unknown>(name: string, args: Record<string, unknown>): Promise<T> {
+    await this.ensureStarted();
+
+    const id = this.nextId++;
+    const req: JsonRpcRequest = {
+      jsonrpc: "2.0",
+      id,
+      method: "tools/call",
+      params: { name, arguments: args },
+    };
+
+    const response = await new Promise<JsonRpcSuccess>((resolve, reject) => {
+      this.pending.set(id, { resolve, reject });
+      this.send(req);
+    });
+
+    return response.result as T;
   }
-  return current;
 }
 
-function getParentAndName(
-  root: DirNodeJSON,
-  pathParts: string[]
-): { parent?: DirNodeJSON; name: string } {
-  if (pathParts.length === 0) return { parent: undefined, name: "" };
-  const name = pathParts[pathParts.length - 1];
-  const parentPath = pathParts.slice(0, -1);
-  const parentNode =
-    parentPath.length === 0 ? root : (getNode(root, parentPath) as NodeJSON | undefined);
-  return { parent: isDir(parentNode) ? parentNode : undefined, name };
-}
-
-function formatPath(parts: string[]): string {
-  const pathStr = "/" + parts.join("/");
-  return pathStr;
-}
+// Singleton MCP client across route invocations
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const globalStore = globalThis as any;
+const MCP_KEY = "__OASIS_MCP_CLIENT__" as const;
+const mcpClient: MCPClient = globalStore[MCP_KEY] ?? new MCPClient();
+globalStore[MCP_KEY] = mcpClient;
 
 function tokenize(input: string): string[] {
   const tokens: string[] = [];
@@ -122,11 +173,8 @@ function tokenize(input: string): string[] {
   for (let i = 0; i < input.length; i++) {
     const ch = input[i];
     if (quote) {
-      if (ch === quote) {
-        quote = null;
-      } else {
-        current += ch;
-      }
+      if (ch === quote) quote = null;
+      else current += ch;
       continue;
     }
     if (ch === '"' || ch === "'") {
@@ -134,7 +182,7 @@ function tokenize(input: string): string[] {
       continue;
     }
     if (ch === " ") {
-      if (current.length > 0) {
+      if (current) {
         tokens.push(current);
         current = "";
       }
@@ -142,214 +190,85 @@ function tokenize(input: string): string[] {
     }
     current += ch;
   }
-  if (current.length > 0) tokens.push(current);
+  if (current) tokens.push(current);
   return tokens;
 }
 
-function command_help(): string[] {
-  return [
-    "Available commands:",
-    "  help                 Show this help",
-    "  pwd                  Print working directory",
-    "  ls [path]            List directory contents",
-    "  cd <path>            Change directory",
-    "  cat <file>           Print file contents",
-    "  mkdir <dir>          Create directory",
-    "  touch <file>         Create empty file",
-    "  rm [-r] <path>       Remove file or directory",
-    "  echo <text>          Print text. Use 'echo text > file' to write",
-    "  date                 Show current date",
-    "  whoami               Show current user",
-  ];
+function splitLines(text: string | undefined): string[] {
+  if (!text) return [];
+  return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
 }
 
-function command_pwd(cwdParts: string[]): string[] {
-  return [formatPath(cwdParts)];
-}
-
-function command_ls(fs: DirNodeJSON, cwdParts: string[], args: string[]): string[] {
-  const targetPath = args[0] ? resolvePath(cwdParts, args[0]) : [...cwdParts];
-  const node = getNode(fs, targetPath);
-  if (!node) return ["ls: No such file or directory"];
-  if (isFile(node)) return [args[0] ?? formatPath(targetPath)];
-  const names = Object.keys(node.children).sort((a, b) => a.localeCompare(b));
-  const formatted = names.map((name) => (isDir(node.children[name]) ? name + "/" : name));
-  return [formatted.join("  ")];
-}
-
-function command_cd(
-  fs: DirNodeJSON,
-  cwdParts: string[],
-  args: string[]
-): { stdout: string[]; cwdParts: string[] } {
-  const next = args[0] ? resolvePath(cwdParts, args[0]) : ["home", "oasis"];
-  const node = getNode(fs, next);
-  if (!node) return { stdout: ["cd: No such file or directory"], cwdParts };
-  if (!isDir(node)) return { stdout: ["cd: Not a directory"], cwdParts };
-  return { stdout: [], cwdParts: next };
-}
-
-function command_cat(fs: DirNodeJSON, cwdParts: string[], args: string[]): string[] {
-  if (args.length === 0) return ["cat: missing file operand"];
-  const pathParts = resolvePath(cwdParts, args[0]);
-  const node = getNode(fs, pathParts);
-  if (!node) return ["cat: No such file"];
-  if (!isFile(node)) return ["cat: Is a directory"];
-  return [node.content];
-}
-
-function getParentAndNameJSON(
-  root: DirNodeJSON,
-  pathParts: string[]
-): { parent?: DirNodeJSON; name: string } {
-  return getParentAndName(root, pathParts);
-}
-
-function command_mkdir(fs: DirNodeJSON, cwdParts: string[], args: string[]): string[] {
-  if (args.length === 0) return ["mkdir: missing operand"];
-  const target = resolvePath(cwdParts, args[0]);
-  const { parent, name } = getParentAndNameJSON(fs, target);
-  if (!parent) return ["mkdir: cannot create directory"];
-  if (parent.children[name]) return ["mkdir: File exists"];
-  parent.children[name] = { type: "dir", children: {} };
-  return [];
-}
-
-function command_touch(fs: DirNodeJSON, cwdParts: string[], args: string[]): string[] {
-  if (args.length === 0) return ["touch: missing file operand"];
-  const target = resolvePath(cwdParts, args[0]);
-  const { parent, name } = getParentAndNameJSON(fs, target);
-  if (!parent) return ["touch: cannot touch file"];
-  const existing = parent.children[name];
-  if (existing && !isFile(existing)) return ["touch: is a directory"];
-  parent.children[name] = { type: "file", content: isFile(existing) ? existing.content : "" };
-  return [];
-}
-
-function command_rm(fs: DirNodeJSON, cwdParts: string[], args: string[]): string[] {
-  if (args.length === 0) return ["rm: missing operand"];
-  const recursive = args[0] === "-r" || args[0] === "-rf" || args[0] === "-fr";
-  const pathArg = recursive ? args[1] : args[0];
-  if (!pathArg) return ["rm: missing operand"];
-  const target = resolvePath(cwdParts, pathArg);
-  const { parent, name } = getParentAndNameJSON(fs, target);
-  if (!parent) return ["rm: cannot remove"];
-  const node = parent.children[name];
-  if (!node) return ["rm: No such file or directory"];
-  if (isDir(node) && !recursive && Object.keys(node.children).length > 0)
-    return ["rm: is a directory (use -r)"];
-  delete parent.children[name];
-  return [];
-}
-
-function command_echo(fs: DirNodeJSON, cwdParts: string[], args: string[]): string[] {
-  if (args.length === 0) return [""];
-  const redirectIndex = args.indexOf(">");
-  if (redirectIndex > -1) {
-    const text = args.slice(0, redirectIndex).join(" ");
-    const targetPath = args[redirectIndex + 1];
-    if (!targetPath) return ["echo: missing file after >"];
-    const target = resolvePath(cwdParts, targetPath);
-    const { parent, name } = getParentAndNameJSON(fs, target);
-    if (!parent) return ["echo: cannot write file"];
-    parent.children[name] = { type: "file", content: text + "\n" };
-    return [];
-  }
-  return [args.join(" ")];
-}
-
-function command_date(): string[] {
-  return [new Date().toString()];
-}
-
-function command_whoami(): string[] {
-  return ["oasis"];
+async function ensureSandboxBase(root: string) {
+  await fs.promises.mkdir(root, { recursive: true });
+  await fs.promises.mkdir(path.join(root, "home", "oasis"), { recursive: true });
+  await fs.promises.mkdir(path.join(root, "tmp"), { recursive: true });
 }
 
 export async function POST(req: Request) {
   try {
-    const { command, cwd } = (await req.json()) as {
-      command: string;
-      cwd?: string; // absolute path
-    };
-
-    if (typeof command !== "string") {
+    const { command, cwd } = (await req.json()) as { command?: string; cwd?: string };
+    if (!command || typeof command !== "string") {
       return Response.json({ error: "Invalid input" }, { status: 400 });
     }
 
-    // Acquire or create session
-    const cookieHeader = req.headers.get("cookie") ?? "";
-    const existing = /term_session=([^;]+)/.exec(cookieHeader)?.[1];
-    let sessionId = existing ?? crypto.randomUUID();
-    let session = SESSIONS.get(sessionId);
-    if (!session) {
-      session = { fs: createInitialFileSystem(), cwdParts: ["home", "oasis"] };
-      SESSIONS.set(sessionId, session);
-    }
-    // If client sends cwd, trust it (absolute path), else use session
-    if (typeof cwd === "string" && cwd.startsWith("/")) {
-      session.cwdParts = partsFromAbsolutePath(cwd);
-    }
+    // Virtualize CWD by stripping leading '/'
+    // Example: '/home/oasis' -> 'home/oasis'
+    const virtualCwd = typeof cwd === "string" ? cwd.replace(/^\/+/, "") : "";
 
-    const fs = session.fs;
-    let cwdParts = session.cwdParts;
+    // Define a sandbox rooted inside backend directory
+    const backendDir = path.resolve(process.cwd(), "..", "backend");
+    const sandboxRoot = path.join(backendDir, "sandbox");
+    await ensureSandboxBase(sandboxRoot);
 
+    // Handle `cd` locally to maintain a session-like CWD
     const args = tokenize(command.trim());
-    const [cmd, ...rest] = args;
-    let stdout: string[] = [];
-
-    switch (cmd) {
-      case "help":
-        stdout = command_help();
-        break;
-      case "pwd":
-        stdout = command_pwd(cwdParts);
-        break;
-      case "ls":
-        stdout = command_ls(fs, cwdParts, rest);
-        break;
-      case "cd": {
-        const res = command_cd(fs, cwdParts, rest);
-        stdout = res.stdout;
-        cwdParts = res.cwdParts;
-        break;
-      }
-      case "cat":
-        stdout = command_cat(fs, cwdParts, rest);
-        break;
-      case "mkdir":
-        stdout = command_mkdir(fs, cwdParts, rest);
-        break;
-      case "touch":
-        stdout = command_touch(fs, cwdParts, rest);
-        break;
-      case "rm":
-        stdout = command_rm(fs, cwdParts, rest);
-        break;
-      case "echo":
-        stdout = command_echo(fs, cwdParts, rest);
-        break;
-      case "date":
-        stdout = command_date();
-        break;
-      case "whoami":
-        stdout = command_whoami();
-        break;
-      default:
-        stdout = [`${cmd}: command not found`];
-    }
-
-    // Persist new cwd in session
-    session.cwdParts = cwdParts;
-
-    const res = Response.json({ stdout, cwd: formatPath(cwdParts) });
-    if (!existing) {
-      res.headers.set(
-        "Set-Cookie",
-        `term_session=${sessionId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`
+    if (args[0] === "cd") {
+      // Prevent absolute OS paths by removing leading '/'
+      const rawTarget = args[1] ?? "";
+      const target = rawTarget.replace(/^\/+/, "");
+      const nextVirtual = path.posix.normalize(
+        target ? path.posix.join(virtualCwd || "", target) : virtualCwd || ""
       );
+
+      // Validate using sandbox filesystem
+      const absPath = path.resolve(sandboxRoot, nextVirtual);
+      try {
+        const stat = await fs.promises.stat(absPath);
+        if (!stat.isDirectory()) {
+          return Response.json({ stdout: ["cd: Not a directory"], cwd: virtualCwd });
+        }
+        return Response.json({ stdout: [], cwd: nextVirtual });
+      } catch {
+        return Response.json({ stdout: ["cd: No such file or directory"], cwd: virtualCwd });
+      }
     }
-    return res;
+
+    // Delegate to backend terminal tool
+    try {
+      const result = await mcpClient.callTool<{
+        content: Array<{ type: string; data?: any; text?: string }>;
+      }>("terminal.execute@v1", {
+        command,
+        // Map virtual cwd to sandbox filesystem
+        cwd: path.resolve(sandboxRoot, virtualCwd || "."),
+      });
+
+      const first = Array.isArray(result?.content) ? result.content[0] : undefined;
+      const data = first?.data as
+        | { stdout?: string; stderr?: string; exitCode?: number }
+        | undefined;
+
+      const outLines = [...splitLines(data?.stdout), ...splitLines(data?.stderr)].filter(
+        (l) => l.length > 0
+      );
+
+      const displayCwd = "/" + (virtualCwd || "");
+      return Response.json({ stdout: outLines, cwd: displayCwd === "/" ? "/" : displayCwd });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Command failed";
+      return Response.json({ error: message }, { status: 400 });
+    }
   } catch (err) {
     return Response.json({ error: "Bad Request" }, { status: 400 });
   }
