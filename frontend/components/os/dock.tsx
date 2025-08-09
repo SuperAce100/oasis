@@ -16,8 +16,6 @@ export interface DockProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 export function Dock({ className, items = [], ...props }: DockProps) {
-  const [hoverIndex, setHoverIndex] = React.useState<number | null>(null);
-
   return (
     <div
       className={cn(
@@ -31,20 +29,15 @@ export function Dock({ className, items = [], ...props }: DockProps) {
     >
       <div className="flex items-center justify-center h-full">
         {items.map((item, index) => {
-          const isHovered = hoverIndex === index;
-          const scale = isHovered ? 1.15 : 1.0;
           return (
             <button
               key={item.id}
               title={item.label}
               className={cn(
-                "relative grid place-items-center transition-all duration-150",
+                "relative grid place-items-center transition-all duration-300",
                 "rounded-lg active:brightness-95",
-                "outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                "outline-none focus-visible:ring-2 focus-visible:ring-ring hover:scale-110 hover:-translate-y-1 group"
               )}
-              style={{ transform: `scale(${scale})` }}
-              onMouseEnter={() => setHoverIndex(index)}
-              onMouseLeave={() => setHoverIndex((v) => (v === index ? null : v))}
               onClick={item.onClick}
             >
               <Image
@@ -56,9 +49,8 @@ export function Dock({ className, items = [], ...props }: DockProps) {
               />
               <div
                 className={cn(
-                  "pointer-events-none absolute -top-6 left-1/2 -translate-x-1/2",
+                  "pointer-events-none absolute -top-6 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100",
                   "rounded-md bg-foreground/70 px-2 py-0.5 backdrop-blur-sm text-[10px] text-white",
-                  isHovered ? "opacity-100" : "opacity-0",
                   "transition-opacity"
                 )}
               >

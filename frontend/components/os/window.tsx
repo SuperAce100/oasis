@@ -11,7 +11,7 @@ const WindowContainerContext = React.createContext<{
   topZ: number;
 } | null>(null);
 
-export interface WindowContainerProps extends React.HTMLAttributes<HTMLDivElement> {}
+export type WindowContainerProps = React.HTMLAttributes<HTMLDivElement>;
 
 export function WindowContainer({ className, children, ...props }: WindowContainerProps) {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
@@ -132,7 +132,7 @@ export function Window({
   const onHeaderPointerDown = (e: React.PointerEvent) => {
     (e.target as Element).setPointerCapture?.(e.pointerId);
     // Avoid starting a drag if this pointerdown is part of a double-click (handled separately)
-    if ((e as any).detail >= 2) return;
+    if (e.detail >= 2) return;
     setIsDragging(true);
     setZIndex(bumpZ());
     const rect = getRect();
