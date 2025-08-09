@@ -10,19 +10,15 @@ export function Desktop({ className, children, ...props }: DesktopProps) {
   return (
     <div
       className={cn(
-        "relative w-full h-full pt-8 pb-18",
+        "absolute inset-0 w-full h-full pt-8 pb-18",
         "bg-[url('/background.jpg')] bg-cover bg-center",
         className
       )}
       {...props}
     >
-        <WindowContainer className="w-full h-full">
-            {children}
-        </WindowContainer>
+      <WindowContainer className="w-full h-full">{children}</WindowContainer>
     </div>
   );
 }
 
 export default Desktop;
-
-
