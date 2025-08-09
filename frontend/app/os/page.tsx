@@ -8,12 +8,14 @@ import { Window } from "@/components/os/window";
 import { TerminalApp } from "@/components/apps/terminal";
 import { CalendarApp } from "@/components/apps/calendar";
 import { MailApp } from "@/components/apps/mail";
+import { FilesApp } from "@/components/apps/files";
 import Logo from "@/components/logo";
 
 export default function OS() {
   const [isTerminalOpen, setIsTerminalOpen] = React.useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = React.useState(false);
   const [isMailOpen, setIsMailOpen] = React.useState(false);
+  const [isFilesOpen, setIsFilesOpen] = React.useState(false);
 
   return (
     <main className="relative min-h-screen bg-background">
@@ -39,6 +41,21 @@ export default function OS() {
             onClose={() => setIsTerminalOpen(false)}
           >
             <TerminalApp className="h-full" />
+          </Window>
+        )}
+
+        {isFilesOpen && (
+          <Window
+            title="Files"
+            initialX={120}
+            initialY={140}
+            initialWidth={820}
+            initialHeight={520}
+            minWidth={640}
+            minHeight={420}
+            onClose={() => setIsFilesOpen(false)}
+          >
+            <FilesApp className="h-full" />
           </Window>
         )}
 
@@ -72,6 +89,12 @@ export default function OS() {
       </Desktop>
       <Dock
         items={[
+          {
+            id: "files",
+            label: "Files",
+            iconSrc: "/apps/Files.png",
+            onClick: () => setIsFilesOpen(true),
+          },
           {
             id: "terminal",
             label: "Terminal",

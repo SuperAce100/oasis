@@ -244,15 +244,16 @@ export async function POST(req: Request) {
       }
     }
 
-    // Delegate to backend terminal tool
+    // Delegate to backend terminal tool via MCP
     try {
-      const result = await mcpClient.callTool<{
-        content: Array<{ type: string; data?: any; text?: string }>;
-      }>("terminal.execute@v1", {
+      const raw = (await mcpClient.callTool("terminal.execute@v1", {
         command,
         // Map virtual cwd to sandbox filesystem
         cwd: path.resolve(sandboxRoot, virtualCwd || "."),
-      });
+      })) as unknown;
+      const result = raw as {
+        content: Array<{ type: string; data?: unknown; text?: string }>;
+      };
 
       const first = Array.isArray(result?.content) ? result.content[0] : undefined;
       const data = first?.data as
@@ -269,7 +270,7 @@ export async function POST(req: Request) {
       const message = e instanceof Error ? e.message : "Command failed";
       return Response.json({ error: message }, { status: 400 });
     }
-  } catch (err) {
+  } catch {
     return Response.json({ error: "Bad Request" }, { status: 400 });
   }
 }
