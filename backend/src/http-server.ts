@@ -1,6 +1,13 @@
 import express from 'express';
 import cors from 'cors';
+import { config } from 'dotenv';
 import { handleGmailList, handleGmailSearch, handleGmailRead, handleGmailSend } from './handlers/gmail.js';
+import {
+  handleSlackPostMessage,
+  handleSlackListConversations,
+  handleSlackGetHistory,
+  handleSlackOpenConversation,
+} from './handlers/slack.js';
 import {
   handleFsHealth,
   handleFsRoots,
@@ -16,6 +23,9 @@ import {
   handleFsFind,
   handleFsComplete,
 } from './handlers/fs.js';
+
+// Load environment variables
+config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -85,6 +95,10 @@ app.listen(PORT, () => {
   console.log(`   POST /gmail/search - Search Gmail messages`);
   console.log(`   POST /gmail/read - Read a Gmail message`);
   console.log(`   POST /gmail/send - Send a Gmail message`);
+  console.log(`   POST /slack/post_message - Post a Slack message`);
+  console.log(`   POST /slack/list_conversations - List conversations`);
+  console.log(`   POST /slack/get_history - Fetch conversation history`);
+  console.log(`   POST /slack/open_conversation - Open a DM/MPIM`);
   console.log(`   GET  /health - Health check`);
 }); 
 
@@ -153,4 +167,48 @@ app.post('/fs/find', async (req: any, res: any) => {
 app.post('/fs/complete', async (req: any, res: any) => {
   try { res.json(await handleFsComplete(req.body)); }
   catch (e) { console.error('fs.complete', e); res.status(400).json({ error: e instanceof Error ? e.message : 'Bad request' }); }
+});
+
+// ==========================================
+// Slack endpoints (MVP)
+// ==========================================
+
+app.post('/slack/post_message', async (req: any, res: any) => {
+  try {
+    const result = await handleSlackPostMessage(req.body, { traceId: 'http' });
+    res.json(result);
+  } catch (error) {
+    console.error('slack.post_message', error);
+    res.status(400).json({ error: error instanceof Error ? error.message : 'Bad request' });
+  }
+});
+
+app.post('/slack/list_conversations', async (req: any, res: any) => {
+  try {
+    const result = await handleSlackListConversations(req.body, { traceId: 'http' });
+    res.json(result);
+  } catch (error) {
+    console.error('slack.list_conversations', error);
+    res.status(400).json({ error: error instanceof Error ? error.message : 'Bad request' });
+  }
+});
+
+app.post('/slack/get_history', async (req: any, res: any) => {
+  try {
+    const result = await handleSlackGetHistory(req.body, { traceId: 'http' });
+    res.json(result);
+  } catch (error) {
+    console.error('slack.get_history', error);
+    res.status(400).json({ error: error instanceof Error ? error.message : 'Bad request' });
+  }
+});
+
+app.post('/slack/open_conversation', async (req: any, res: any) => {
+  try {
+    const result = await handleSlackOpenConversation(req.body, { traceId: 'http' });
+    res.json(result);
+  } catch (error) {
+    console.error('slack.open_conversation', error);
+    res.status(400).json({ error: error instanceof Error ? error.message : 'Bad request' });
+  }
 });

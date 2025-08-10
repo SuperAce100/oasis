@@ -46,6 +46,29 @@ export default function OS() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  // Listen for UI intents from agent
+  React.useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { action: string; appId: string; params?: any };
+      const { action, appId, params } = detail || {};
+      const openApp = (id: string) => {
+        if (id === 'terminal') setIsTerminalOpen(true);
+        if (id === 'files') setIsFilesOpen(true);
+        if (id === 'mail') setIsMailOpen(true);
+        if (id === 'calendar') setIsCalendarOpen(true);
+      };
+      if (!action || !appId) return;
+      if (action === 'open' || action === 'focus') {
+        openApp(appId);
+      }
+      // typing integration can be added inside each app component as needed
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('oasis-ui-intent', handler as EventListener);
+      return () => window.removeEventListener('oasis-ui-intent', handler as EventListener);
+    }
+  }, []);
+
   return (
     <main className="relative min-h-screen bg-background">
       <TopBar />

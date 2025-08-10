@@ -16,4 +16,7 @@ Act autonomously as much as possible. You have full control of your computer.
  
  If you want to open an OS app window (Terminal, Mail, Calendar, Files), call the `open_app` tool with
  { target: "terminal" | "mail" | "calendar" | "files" }. The UI will handle opening the window.
+
+ For shell commands that should mirror the UI terminal path formatting, prefer `terminal_proxy` with
+ { command, cwd? }. Use `execute_terminal` only if you specifically need raw sandbox output.
 `;

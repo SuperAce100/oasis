@@ -207,6 +207,16 @@ export const mcpToolSchemas = {
       .describe("Execute shell commands locally"),
   },
 
+  // Frontend-only proxy for terminal that hits /api/terminal to keep virtual cwd formatting
+  terminal_proxy: {
+    inputSchema: z
+      .object({
+        command: z.string().min(1).max(500),
+        cwd: z.string().max(200).optional(),
+      })
+      .describe("Execute shell via frontend /api/terminal (for consistent UI cwd)"),
+  },
+
   open_app: {
     inputSchema: z
       .object({
@@ -224,6 +234,8 @@ export const mcpToolSchemas = {
         maxSteps: z.number().int().min(1).max(50).optional(),
         dryRun: z.boolean().optional(),
         stepDelayMs: z.number().int().min(0).max(60000).optional(),
+        screenshot: z.string().optional(),
+        allowExecution: z.boolean().optional(),
       })
       .describe(
         "Spawn a computer-use agent: screenshot + vision model to propose and execute actions in a loop."

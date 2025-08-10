@@ -23,6 +23,7 @@ import { handleNotionGetPage } from "./handlers/notion.js";
 import { handleStatusGetJob, handleStatusListJobs } from "./handlers/status.js";
 import { handleTerminalExecute } from "./handlers/terminal.js";
 import { handleContactsList, handleContactsSearch } from "./handlers/contacts.js";
+import { handleUiAction } from "./handlers/ui.js";
 import {
   handleFsHealth,
   handleFsRoots,
@@ -40,6 +41,12 @@ import {
 } from "./handlers/fs.js";
 import { handleOpenApp } from "./handlers/open_app.js";
 import { handleDoAnything } from "./handlers/do_anything.js";
+import {
+  handleSlackPostMessage,
+  handleSlackListConversations,
+  handleSlackGetHistory,
+  handleSlackOpenConversation,
+} from "./handlers/slack.js";
 import { logStart, logSuccess, logError, LogContext } from "./utils/logger.js";
 import { MCPError } from "./utils/errors.js";
 
@@ -310,6 +317,59 @@ tools.push({
   },
 });
 
+// Slack tools (enabled if token present)
+if (process.env.SLACK_BOT_TOKEN) {
+  tools.push({
+    name: "slack_post_message",
+    description: "Post a message to a Slack channel (by ID)",
+    inputSchema: {
+      type: "object",
+      properties: {
+        channel: { type: "string", description: "Channel ID (e.g., C...)" },
+        text: { type: "string", description: "Message text" },
+        thread_ts: { type: "string", description: "Optional thread ts" },
+      },
+      required: ["channel", "text"],
+    },
+  });
+  tools.push({
+    name: "slack_list_conversations",
+    description: "List conversations visible to the bot",
+    inputSchema: {
+      type: "object",
+      properties: {
+        types: { type: "string", description: "public_channel,private_channel,im,mpim" },
+        limit: { type: "number", description: "Max results (1-1000)", minimum: 1, maximum: 1000 },
+        cursor: { type: "string", description: "Pagination cursor" },
+      },
+    },
+  });
+  tools.push({
+    name: "slack_get_history",
+    description: "Get message history for a channel",
+    inputSchema: {
+      type: "object",
+      properties: {
+        channel: { type: "string", description: "Channel ID" },
+        limit: { type: "number", description: "Max results (1-1000)", minimum: 1, maximum: 1000 },
+        cursor: { type: "string", description: "Pagination cursor" },
+      },
+      required: ["channel"],
+    },
+  });
+  tools.push({
+    name: "slack_open_conversation",
+    description: "Open a DM or MPIM by user IDs (comma-separated)",
+    inputSchema: {
+      type: "object",
+      properties: {
+        users: { type: "string", description: "Comma-separated user IDs (e.g., U...,U...)" },
+      },
+      required: ["users"],
+    },
+  });
+}
+
 // Filesystem tools (simple, consistent names)
 // Contacts tools (Google People API)
 tools.push({
@@ -417,6 +477,21 @@ tools.push({
   name: "fs_complete",
   description: "Tab-complete a path-like input",
   inputSchema: { type: "object", properties: { cwd: { type: "string" }, input: { type: "string" } }, required: ["input"] },
+});
+
+// UI action (simulated inside Oasis)
+tools.push({
+  name: "ui_action",
+  description: "Emit a UI intent for the frontend to open/focus/type in apps",
+  inputSchema: {
+    type: "object",
+    properties: {
+      appId: { type: "string", enum: ["terminal", "files", "mail", "calendar"] },
+      action: { type: "string", enum: ["open", "focus", "type", "sendKey"] },
+      params: { type: "object", properties: { text: { type: "string" }, key: { type: "string" } } },
+    },
+    required: ["appId", "action"],
+  },
 });
 
 // New: Open app tool
@@ -550,6 +625,28 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case "execute_terminal":
         return await wrap("execute_terminal", handleTerminalExecute)(args);
 
+      // Slack endpoints
+      case "slack_post_message":
+        if (!process.env.SLACK_BOT_TOKEN) throw new MCPError("Slack token not configured", "UNAUTHORIZED");
+        return await wrap("slack_post_message", async (a: unknown, c: LogContext) =>
+          handleSlackPostMessage(a, c, process.env.SLACK_BOT_TOKEN as string)
+        )(args);
+      case "slack_list_conversations":
+        if (!process.env.SLACK_BOT_TOKEN) throw new MCPError("Slack token not configured", "UNAUTHORIZED");
+        return await wrap("slack_list_conversations", async (a: unknown, c: LogContext) =>
+          handleSlackListConversations(a, c, process.env.SLACK_BOT_TOKEN as string)
+        )(args);
+      case "slack_get_history":
+        if (!process.env.SLACK_BOT_TOKEN) throw new MCPError("Slack token not configured", "UNAUTHORIZED");
+        return await wrap("slack_get_history", async (a: unknown, c: LogContext) =>
+          handleSlackGetHistory(a, c, process.env.SLACK_BOT_TOKEN as string)
+        )(args);
+      case "slack_open_conversation":
+        if (!process.env.SLACK_BOT_TOKEN) throw new MCPError("Slack token not configured", "UNAUTHORIZED");
+        return await wrap("slack_open_conversation", async (a: unknown, c: LogContext) =>
+          handleSlackOpenConversation(a, c, process.env.SLACK_BOT_TOKEN as string)
+        )(args);
+
       // FS endpoints
       case "fs_health":
         return await wrap("fs_health", async () => handleFsHealth())(args);
@@ -577,6 +674,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         return await wrap("fs_find", handleFsFind)(args);
       case "fs_complete":
         return await wrap("fs_complete", handleFsComplete)(args);
+
+      case "ui_action":
+        return await wrap("ui_action", handleUiAction)(args);
 
       case "open_app":
         return await wrap("open_app", handleOpenApp)(args);

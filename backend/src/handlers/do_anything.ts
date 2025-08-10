@@ -16,6 +16,12 @@ export interface DoAnythingArgs {
   maxSteps?: number;
   dryRun?: boolean;
   stepDelayMs?: number;
+  // Optional base64 screenshot (or data URL) captured by the FRONTEND.
+  // If provided, we will use it as the observation instead of taking a native OS screenshot.
+  screenshot?: string | null;
+  // If true while screenshot is provided, we will still attempt native execution when possible (Linux+xdotool).
+  // Defaults to false for safety in frontend-driven mode.
+  allowExecution?: boolean;
 }
 
 const DO_ANYTHING_SCHEMA: JSONSchemaType<DoAnythingArgs> = {
@@ -25,6 +31,8 @@ const DO_ANYTHING_SCHEMA: JSONSchemaType<DoAnythingArgs> = {
     maxSteps: { type: 'number', minimum: 1, maximum: 50, nullable: true },
     dryRun: { type: 'boolean', nullable: true },
     stepDelayMs: { type: 'number', minimum: 0, maximum: 60000, nullable: true },
+    screenshot: { type: 'string', nullable: true },
+    allowExecution: { type: 'boolean', nullable: true },
   },
   required: ['goal'],
   additionalProperties: false,
@@ -127,7 +135,7 @@ async function executeAction(action: ProposedAction): Promise<{ ok: boolean; det
 
 export async function handleDoAnything(args: unknown, context: LogContext) {
   emitProgress(1, 6, 'validating input');
-  const { goal, maxSteps = 15, dryRun = false, stepDelayMs = 250 } = validateOrThrow(
+  const { goal, maxSteps = 15, dryRun = false, stepDelayMs = 250, screenshot, allowExecution = false } = validateOrThrow(
     DO_ANYTHING_SCHEMA,
     args,
     'do_anything'
@@ -136,8 +144,14 @@ export async function handleDoAnything(args: unknown, context: LogContext) {
   if (!process.env.OPENAI_API_KEY) {
     throw BAD_REQUEST('OPENAI_API_KEY not configured');
   }
-  if (process.platform !== 'linux') {
-    throw BAD_REQUEST('do_anything is only supported on Linux in this environment');
+
+  // Frontend-driven mode: when a screenshot is provided, we can run on any OS.
+  // Native execution will only be attempted if allowExecution is true AND platform supports it.
+  const frontendDriven = !!screenshot;
+  const canExecuteNatively = !frontendDriven && process.platform === 'linux';
+  const executionEnabled = canExecuteNatively || (frontendDriven && allowExecution && process.platform === 'linux');
+  if (!frontendDriven && process.platform !== 'linux') {
+    throw BAD_REQUEST('do_anything requires Linux when a frontend screenshot is not provided');
   }
 
   if (!OpenAIClient) {
@@ -149,13 +163,30 @@ export async function handleDoAnything(args: unknown, context: LogContext) {
 
   const transcript: Array<any> = [];
   let lastScreenshotPath: string | null = null;
+  // If the screenshot is provided by the frontend, normalize it to base64 (strip data URL prefix if present)
+  const providedImageBase64 = (() => {
+    if (!screenshot) return null;
+    const trimmed = screenshot.trim();
+    const commaIdx = trimmed.indexOf(',');
+    if (trimmed.startsWith('data:') && commaIdx !== -1) {
+      return trimmed.slice(commaIdx + 1);
+    }
+    return trimmed;
+  })();
 
-  for (let step = 1; step <= maxSteps; step++) {
+  const effectiveMaxSteps = frontendDriven ? Math.min(1, maxSteps) : maxSteps;
+
+  for (let step = 1; step <= effectiveMaxSteps; step++) {
     emitProgress(2, 6, `step ${step}: screenshot`);
-    const shot = await takeScreenshot();
-    lastScreenshotPath = shot.filePath;
-    const imageBytes = fs.readFileSync(shot.filePath);
-    const imageBase64 = imageBytes.toString('base64');
+    let imageBase64: string;
+    if (providedImageBase64) {
+      imageBase64 = providedImageBase64;
+    } else {
+      const shot = await takeScreenshot();
+      lastScreenshotPath = shot.filePath;
+      const imageBytes = fs.readFileSync(shot.filePath);
+      imageBase64 = imageBytes.toString('base64');
+    }
 
     emitProgress(3, 6, `step ${step}: propose action`);
 
@@ -204,7 +235,7 @@ export async function handleDoAnything(args: unknown, context: LogContext) {
         content: [
           {
             type: 'json',
-            data: { goal, steps: step, done: true, transcript, lastScreenshotPath, dryRun },
+            data: { goal, steps: step, done: true, transcript, lastScreenshotPath, dryRun, frontendDriven },
           },
         ],
       };
@@ -214,11 +245,19 @@ export async function handleDoAnything(args: unknown, context: LogContext) {
 
     let execResult: any = { skipped: true };
     if (!dryRun) {
-      execResult = await executeAction(proposed);
-      (transcript as any)[(transcript as any).length - 1].execution = execResult;
+      if (executionEnabled) {
+        execResult = await executeAction(proposed);
+        (transcript as any)[(transcript as any).length - 1].execution = execResult;
+      } else {
+        // Signal UI to execute this action client-side
+        (transcript as any)[(transcript as any).length - 1].uiIntent = {
+          action: 'ui_action',
+          args: proposed,
+        };
+      }
     }
 
-    if (step < maxSteps) {
+    if (step < effectiveMaxSteps) {
       emitProgress(5, 6, `step ${step}: wait`);
       await new Promise((r) => setTimeout(r, stepDelayMs));
     }
@@ -229,7 +268,7 @@ export async function handleDoAnything(args: unknown, context: LogContext) {
     content: [
       {
         type: 'json',
-        data: { goal, steps: (validateOrThrow as any) ? undefined : undefined, done: false, reason: 'max_steps', transcript },
+        data: { goal, steps: effectiveMaxSteps, done: false, reason: 'max_steps', transcript, frontendDriven },
       },
     ],
   };
