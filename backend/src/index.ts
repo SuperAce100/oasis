@@ -22,8 +22,7 @@ import { handleGitHubCreateIssue } from "./handlers/github.js";
 import { handleNotionGetPage } from "./handlers/notion.js";
 import { handleStatusGetJob, handleStatusListJobs } from "./handlers/status.js";
 import { handleTerminalExecute } from "./handlers/terminal.js";
-import { handleOpenApp } from "./handlers/open_app.js";
-import { handleDoAnything } from "./handlers/do_anything.js";
+
 import { logStart, logSuccess, logError, LogContext } from "./utils/logger.js";
 import { MCPError } from "./utils/errors.js";
 
@@ -294,36 +293,7 @@ tools.push({
   },
 });
 
-// New: Open app tool
-tools.push({
-  name: "open_app",
-  description: "Open an application or focus its window on the desktop (Linux only).",
-  inputSchema: {
-    type: "object",
-    properties: {
-      target: { type: "string", description: "App name/desktop id/path/URL", minLength: 1 },
-      action: { type: "string", enum: ["open", "focus"], description: "Whether to open or focus", default: "open" },
-      hintClass: { type: "string", description: "Optional X11/WM class hint for focusing" },
-    },
-    required: ["target"],
-  },
-});
 
-// New: Do-anything tool (computer-use loop)
-tools.push({
-  name: "do_anything",
-  description: "Spawn a computer-use agent: screenshot + vision model to propose and execute actions in a loop.",
-  inputSchema: {
-    type: "object",
-    properties: {
-      goal: { type: "string", description: "High-level user goal", minLength: 1 },
-      maxSteps: { type: "number", description: "Maximum steps to run", minimum: 1, maximum: 50, default: 15 },
-      dryRun: { type: "boolean", description: "If true, do not actually execute actions", default: false },
-      stepDelayMs: { type: "number", description: "Delay between steps in ms", minimum: 0, maximum: 60000, default: 250 },
-    },
-    required: ["goal"],
-  },
-});
 
 // Wrapper function for consistent logging and error handling
 function wrap<T extends (...args: any[]) => Promise<any>>(
@@ -425,11 +395,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case "execute_terminal":
         return await wrap("execute_terminal", handleTerminalExecute)(args);
 
-      case "open_app":
-        return await wrap("open_app", handleOpenApp)(args);
-
-      case "do_anything":
-        return await wrap("do_anything", handleDoAnything)(args);
 
       default:
         throw new MCPError(`Unknown tool: ${name}`, "BAD_REQUEST");
