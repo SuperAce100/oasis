@@ -40,13 +40,17 @@ export function TerminalApp({ className, ...props }: TerminalAppProps) {
   React.useEffect(() => {
     if (!deeplinkRaw || deeplinkRaw === lastDeeplinkRawRef.current) return;
     lastDeeplinkRawRef.current = deeplinkRaw;
+    console.log("[TerminalApp] Received deeplink:", deeplinkRaw);
     try {
       const parsed = JSON.parse(deeplinkRaw) as { command?: string; cwd?: string };
+      console.log("[TerminalApp] Parsed deeplink:", parsed);
       if (parsed?.cwd) setCwd(parsed.cwd);
       if (parsed?.command && parsed.command.trim().length > 0) {
+        console.log("[TerminalApp] Executing deeplink command:", parsed.command);
         void runCommand(parsed.command, { cwd: parsed.cwd });
       }
-    } catch {
+    } catch (e) {
+      console.error("[TerminalApp] Failed to parse deeplink:", e);
       // ignore malformed deeplink
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

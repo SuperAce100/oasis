@@ -31,6 +31,7 @@ type Listener<T> = (detail: T) => void;
 
 export function openTerminal(detail: OpenTerminalEvent) {
   if (typeof window === "undefined") return;
+  console.log("[os-events] Dispatching openTerminal event:", detail);
   window.dispatchEvent(new CustomEvent(OPEN_TERMINAL_EVENT, { detail }));
 }
 

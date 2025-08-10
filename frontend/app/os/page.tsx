@@ -37,6 +37,15 @@ export default function OS() {
   const [terminalFocusBump, setTerminalFocusBump] = React.useState(0);
   const [mailFocusBump, setMailFocusBump] = React.useState(0);
 
+  // Debug state changes
+  React.useEffect(() => {
+    console.log("[OS] isTerminalOpen changed:", isTerminalOpen);
+  }, [isTerminalOpen]);
+
+  React.useEffect(() => {
+    console.log("[OS] terminalDeeplink changed:", terminalDeeplink);
+  }, [terminalDeeplink]);
+
   // Global Cmd+K handler
   React.useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -59,14 +68,18 @@ export default function OS() {
 
   // Listen for deeplink events; always open and bring to front
   React.useEffect(() => {
+    console.log("[OS] Setting up deeplink event listeners");
     const offTerm = onOpenTerminal((detail) => {
       try {
         // eslint-disable-next-line no-console
-        console.debug("[oasis] onOpenTerminal", detail);
+        console.debug("[oasis] onOpenTerminal received:", detail);
       } catch {}
+      console.log("[OS] Setting terminal deeplink and opening terminal");
+      console.log("[OS] Current isTerminalOpen:", isTerminalOpen);
       setTerminalDeeplink(detail);
       setIsTerminalOpen(true);
       setTerminalFocusBump((n) => n + 1);
+      console.log("[OS] Terminal should now be open");
     });
     const offMail = onOpenMail((detail) => {
       try {
@@ -121,25 +134,29 @@ export default function OS() {
           </Window>
         )}
 
-        {isTerminalOpen && (
-          <Window
-            title="Terminal"
-            initialX={80}
-            initialY={96}
-            initialWidth={560}
-            initialHeight={360}
-            focusSignal={terminalFocusBump}
-            onClose={() => {
-              setIsTerminalOpen(false);
-              setTerminalDeeplink(null);
-            }}
-          >
-            <TerminalApp
-              className="h-full"
-              data-deeplink={terminalDeeplink ? JSON.stringify(terminalDeeplink) : undefined}
-            />
-          </Window>
-        )}
+        {isTerminalOpen &&
+          (() => {
+            console.log("[OS] Rendering terminal window with deeplink:", terminalDeeplink);
+            return (
+              <Window
+                title="Terminal"
+                initialX={80}
+                initialY={96}
+                initialWidth={560}
+                initialHeight={360}
+                focusSignal={terminalFocusBump}
+                onClose={() => {
+                  setIsTerminalOpen(false);
+                  setTerminalDeeplink(null);
+                }}
+              >
+                <TerminalApp
+                  className="h-full"
+                  data-deeplink={terminalDeeplink ? JSON.stringify(terminalDeeplink) : undefined}
+                />
+              </Window>
+            );
+          })()}
 
         {isFilesOpen && (
           <Window
@@ -205,7 +222,10 @@ export default function OS() {
             id: "terminal",
             label: "Terminal",
             iconSrc: "/apps/Terminal.png",
-            onClick: () => setIsTerminalOpen(true),
+            onClick: () => {
+              console.log("[OS] Terminal clicked from dock");
+              setIsTerminalOpen(true);
+            },
           },
           {
             id: "calendar",

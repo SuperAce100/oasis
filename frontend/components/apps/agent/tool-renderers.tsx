@@ -59,12 +59,22 @@ function TerminalTool({ input, state }: { input?: GenericRecord; state?: unknown
   const cwd = typeof input?.cwd === "string" ? (input?.cwd as string) : undefined;
   const openedRef = React.useRef(false);
   React.useEffect(() => {
-    // Auto-open and execute when the tool starts streaming
-    if (!openedRef.current && state === "streaming" && command) {
+    // Auto-open and execute when the tool starts streaming or when command is available
+    if (!openedRef.current && command) {
+      // Open terminal when command is available, regardless of state
       openedRef.current = true;
+      console.log("[TerminalTool] Dispatching openTerminal event:", { command, cwd, state });
       openTerminal({ command, cwd });
     }
-  }, [state, command]);
+  }, [state, command, cwd]);
+
+  const handleOpenTerminal = React.useCallback(() => {
+    console.log("[TerminalTool] Manual openTerminal click:", { command, cwd });
+    if (command) {
+      openTerminal({ command, cwd });
+    }
+  }, [command, cwd]);
+
   return (
     <div className="space-y-2">
       <div className="flex flex-row gap-2 items-center">
@@ -75,7 +85,7 @@ function TerminalTool({ input, state }: { input?: GenericRecord; state?: unknown
         {command ? (
           <button
             type="button"
-            onClick={() => openTerminal({ command, cwd })}
+            onClick={handleOpenTerminal}
             className="ml-auto text-xs underline text-blue-700"
           >
             Open in Terminal
