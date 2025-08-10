@@ -35,7 +35,7 @@ export async function POST(req: Request) {
     onFinish: async (message) => {
       await mcpClient.close();
     },
-    stopWhen: stepCountIs(20),
+    stopWhen: stepCountIs(100),
   });
 
   return result.toUIMessageStreamResponse();

@@ -3,9 +3,26 @@ export type OpenTerminalEvent = {
   cwd?: string;
 };
 
-export type OpenMailEvent = {
-  messageId: string;
-};
+// Discriminated union for Mail deeplinks covering all major actions
+export type OpenMailEvent =
+  | { action: "read"; messageId: string }
+  | { action: "search"; query: string }
+  | {
+      action: "list";
+      folderId?: string; // inbox | sent | archive | trash
+      unreadOnly?: boolean;
+      orderBy?: "receivedDateTime" | "subject";
+      query?: string; // clear or preset query
+    }
+  | {
+      action: "compose";
+      to?: string[];
+      cc?: string[];
+      bcc?: string[];
+      subject?: string;
+      body?: string;
+      format?: "text" | "html";
+    };
 
 const OPEN_TERMINAL_EVENT = "oasis:open-terminal" as const;
 const OPEN_MAIL_EVENT = "oasis:open-mail" as const;

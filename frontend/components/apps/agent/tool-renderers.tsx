@@ -59,6 +59,7 @@ function TerminalTool({ input, state }: { input?: GenericRecord; state?: unknown
   const cwd = typeof input?.cwd === "string" ? (input?.cwd as string) : undefined;
   const openedRef = React.useRef(false);
   React.useEffect(() => {
+    // Auto-open and execute when the tool starts streaming
     if (!openedRef.current && state === "streaming" && command) {
       openedRef.current = true;
       openTerminal({ command, cwd });
@@ -123,13 +124,37 @@ function MailTool({
   state?: unknown;
 }) {
   const messageId = typeof input?.messageId === "string" ? (input?.messageId as string) : undefined;
+  const query = typeof input?.query === "string" ? (input?.query as string) : undefined;
   const openedRef = React.useRef(false);
   React.useEffect(() => {
-    if (!openedRef.current && toolName === "read_email" && state === "done" && messageId) {
+    if (openedRef.current) return;
+    // Auto-open for all mail tools as soon as inputs are available:
+    // - read_email: open specific message
+    // - search_email: open Mail with search query
+    // - list_email: open Mail with optional folder/unread/order
+    // - send_email: open Mail (no deeplink specifics yet)
+    if (toolName === "read_email" && messageId) {
       openedRef.current = true;
-      openMail({ messageId });
+      openMail({ action: "read", messageId });
+    } else if (toolName === "search_email" && typeof query === "string") {
+      openedRef.current = true;
+      openMail({ action: "search", query });
+    } else if (toolName === "list_email") {
+      openedRef.current = true;
+      const folderId =
+        typeof input?.folderId === "string" ? (input?.folderId as string) : undefined;
+      const unreadOnly =
+        typeof input?.unreadOnly === "boolean" ? (input?.unreadOnly as boolean) : undefined;
+      const orderBy =
+        typeof input?.orderBy === "string"
+          ? (input?.orderBy as "receivedDateTime" | "subject")
+          : undefined;
+      openMail({ action: "list", folderId, unreadOnly, orderBy, query });
+    } else if (toolName === "send_email") {
+      openedRef.current = true;
+      openMail({ action: "list", folderId: "sent" });
     }
-  }, [toolName, state, messageId]);
+  }, [toolName, messageId, query, input]);
   return (
     <Accordion type="single" collapsible className="w-full">
       <AccordionItem value="mail-tool">
@@ -142,7 +167,7 @@ function MailTool({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  openMail({ messageId });
+                  openMail({ action: "read", messageId });
                 }}
                 className="ml-2 text-xs underline text-blue-700"
               >

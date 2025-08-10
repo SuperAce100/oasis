@@ -8,6 +8,7 @@ import { Sidebar } from "./Sidebar";
 import { MessageView } from "./MessageView";
 import { AttachmentPill } from "./AttachmentPill";
 import { useEmailList, useEmailRead } from "./hooks";
+import type { OpenMailEvent } from "@/lib/os-events";
 import type { OrderBy } from "./types";
 
 export type MailAppProps = React.HTMLAttributes<HTMLDivElement> & {
@@ -31,18 +32,43 @@ export function MailApp({ className, ...props }: MailAppProps) {
   });
   const { message, isLoading: isReading } = useEmailRead(selectedId);
 
-  // Apply deeplink selection on mount
+  // Apply deeplink when it changes (works if window already open)
+  const lastDeeplinkRef = React.useRef<string | undefined>(undefined);
   React.useEffect(() => {
+    const raw = (props as any)["data-deeplink"] as string | undefined;
+    if (!raw || raw === lastDeeplinkRef.current) return;
+    lastDeeplinkRef.current = raw;
     try {
-      const raw = (props as any)["data-deeplink"] as string | undefined;
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as { messageId?: string };
-      if (parsed?.messageId) setSelectedId(parsed.messageId);
+      const parsed = JSON.parse(raw) as OpenMailEvent;
+      switch (parsed.action) {
+        case "read": {
+          if (parsed.messageId) setSelectedId(parsed.messageId);
+          break;
+        }
+        case "search": {
+          setQuery(parsed.query ?? "");
+          setFolderId("inbox");
+          setSelectedId(null);
+          break;
+        }
+        case "list": {
+          if (parsed.folderId) setFolderId(parsed.folderId);
+          if (typeof parsed.unreadOnly === "boolean") setUnreadOnly(parsed.unreadOnly);
+          if (parsed.orderBy) setOrderBy(parsed.orderBy);
+          setQuery(parsed.query ?? "");
+          setSelectedId(null);
+          break;
+        }
+        case "compose": {
+          // Future: open compose prefilled. For now, just switch to Sent to reflect action after send
+          setFolderId("sent");
+          break;
+        }
+      }
     } catch {
-      // ignore
+      // ignore malformed deeplink
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [props]);
 
   React.useEffect(() => {
     if (emails.length > 0 && !selectedId) setSelectedId(emails[0].id);

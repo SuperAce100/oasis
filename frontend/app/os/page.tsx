@@ -6,7 +6,12 @@ import { Dock } from "@/components/os/dock";
 import { Desktop } from "@/components/os/desktop";
 import { Window } from "@/components/os/window";
 import { TerminalApp } from "@/components/apps/terminal";
-import { onOpenTerminal, onOpenMail, type OpenTerminalEvent, type OpenMailEvent } from "@/lib/os-events";
+import {
+  onOpenTerminal,
+  onOpenMail,
+  type OpenTerminalEvent,
+  type OpenMailEvent,
+} from "@/lib/os-events";
 import { CalendarApp } from "@/components/apps/calendar";
 import { MailApp } from "@/components/apps/mail";
 import { FilesApp } from "@/components/apps/files";
@@ -29,6 +34,8 @@ export default function OS() {
   // Deeplink payloads
   const [terminalDeeplink, setTerminalDeeplink] = React.useState<OpenTerminalEvent | null>(null);
   const [mailDeeplink, setMailDeeplink] = React.useState<OpenMailEvent | null>(null);
+  const [terminalFocusBump, setTerminalFocusBump] = React.useState(0);
+  const [mailFocusBump, setMailFocusBump] = React.useState(0);
 
   // Global Cmd+K handler
   React.useEffect(() => {
@@ -50,15 +57,17 @@ export default function OS() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  // Listen for deeplink events
+  // Listen for deeplink events; always open and bring to front
   React.useEffect(() => {
     const offTerm = onOpenTerminal((detail) => {
       setTerminalDeeplink(detail);
       setIsTerminalOpen(true);
+      setTerminalFocusBump((n) => n + 1);
     });
     const offMail = onOpenMail((detail) => {
       setMailDeeplink(detail);
       setIsMailOpen(true);
+      setMailFocusBump((n) => n + 1);
     });
     return () => {
       offTerm?.();
@@ -111,12 +120,16 @@ export default function OS() {
             initialY={96}
             initialWidth={560}
             initialHeight={360}
+            focusSignal={terminalFocusBump}
             onClose={() => {
               setIsTerminalOpen(false);
               setTerminalDeeplink(null);
             }}
           >
-            <TerminalApp className="h-full" data-deeplink={terminalDeeplink ? JSON.stringify(terminalDeeplink) : undefined} />
+            <TerminalApp
+              className="h-full"
+              data-deeplink={terminalDeeplink ? JSON.stringify(terminalDeeplink) : undefined}
+            />
           </Window>
         )}
 
@@ -159,12 +172,16 @@ export default function OS() {
             initialHeight={720}
             minWidth={800}
             minHeight={600}
+            focusSignal={mailFocusBump}
             onClose={() => {
               setIsMailOpen(false);
               setMailDeeplink(null);
             }}
           >
-            <MailApp className="h-full" data-deeplink={mailDeeplink ? JSON.stringify(mailDeeplink) : undefined} />
+            <MailApp
+              className="h-full"
+              data-deeplink={mailDeeplink ? JSON.stringify(mailDeeplink) : undefined}
+            />
           </Window>
         )}
       </Desktop>
