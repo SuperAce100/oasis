@@ -34,18 +34,37 @@ type Pending = {
   reject: (reason: Error) => void;
 };
 
+const MCP_CLIENT_VERSION = 2 as const;
+
 class MCPClient {
   private process: ChildProcessWithoutNullStreams | null = null;
   private nextId = 1;
   private initialized = false;
   private readonly pending = new Map<number, Pending>();
   private readonly stdoutRemainder: { value: string } = { value: "" };
+  private startedAtMs: number | null = null;
 
   private getBackendDir(): string {
     return path.resolve(process.cwd(), "..", "backend");
   }
 
   private ensureStarted(): Promise<void> {
+    // One-time version bump-based restart to pick up backend code changes
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const globalStore = globalThis as any;
+      const KEY = "__OASIS_MCP_CLIENT_VERSION__" as const;
+      const currentVersion = globalStore[KEY];
+      if (currentVersion !== MCP_CLIENT_VERSION && this.process) {
+        try {
+          this.process.kill();
+        } catch {}
+        this.process = null;
+        this.initialized = false;
+      }
+      globalStore[KEY] = MCP_CLIENT_VERSION;
+    } catch {}
+
     // If an old process is running with the legacy dist entry, restart with dev mode
     if (this.process) {
       const spawnArgs = Array.isArray((this.process as any).spawnargs)
@@ -90,6 +109,7 @@ class MCPClient {
         }
 
         this.process = proc;
+        this.startedAtMs = Date.now();
 
         proc.stdout.setEncoding("utf8");
         proc.stdout.on("data", (chunk: string) => {

@@ -3,6 +3,10 @@ export type OpenTerminalEvent = {
   cwd?: string;
 };
 
+export type OpenFilesEvent = {
+  path?: string; // absolute or relative to allowed roots
+};
+
 // Discriminated union for Mail deeplinks covering all major actions
 export type OpenMailEvent =
   | { action: "read"; messageId: string }
@@ -26,6 +30,7 @@ export type OpenMailEvent =
 
 const OPEN_TERMINAL_EVENT = "oasis:open-terminal" as const;
 const OPEN_MAIL_EVENT = "oasis:open-mail" as const;
+const OPEN_FILES_EVENT = "oasis:open-files" as const;
 
 type Listener<T> = (detail: T) => void;
 
@@ -43,6 +48,21 @@ export function onOpenTerminal(listener: Listener<OpenTerminalEvent>) {
   };
   window.addEventListener(OPEN_TERMINAL_EVENT, handler as EventListener);
   return () => window.removeEventListener(OPEN_TERMINAL_EVENT, handler as EventListener);
+}
+
+export function openFiles(detail: OpenFilesEvent) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(OPEN_FILES_EVENT, { detail }));
+}
+
+export function onOpenFiles(listener: Listener<OpenFilesEvent>) {
+  if (typeof window === "undefined") return () => {};
+  const handler = (e: Event) => {
+    const ce = e as CustomEvent<OpenFilesEvent>;
+    listener(ce.detail);
+  };
+  window.addEventListener(OPEN_FILES_EVENT, handler as EventListener);
+  return () => window.removeEventListener(OPEN_FILES_EVENT, handler as EventListener);
 }
 
 export function openMail(detail: OpenMailEvent) {

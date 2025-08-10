@@ -40,12 +40,14 @@ export async function POST(req: Request) {
     } catch {}
   }
   if (!apiKey) {
-    return new Response(JSON.stringify({ error: "OPENAI_API_KEY not found in env" }), { status: 500 });
+    return new Response(JSON.stringify({ error: "OPENAI_API_KEY not found in env" }), {
+      status: 500,
+    });
   }
   const openai = createOpenAI({ apiKey });
 
   const result = streamText({
-    model: openai("o4-mini"),
+    model: openai("gpt-5-mini"),
     system: SYSTEM_PROMPT,
     messages: convertToModelMessages(messages),
     providerOptions: {

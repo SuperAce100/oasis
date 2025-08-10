@@ -44,7 +44,11 @@ export function useBackend(): UseBackend {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "call", name, arguments: args ?? {} }),
       });
-      if (!res.ok) throw new Error(`Tool call failed: ${name}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        const message = typeof err?.error === "string" ? err.error : `Tool call failed: ${name}`;
+        throw new Error(message);
+      }
       return (await res.json()) as T;
     },
     []

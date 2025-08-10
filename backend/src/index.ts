@@ -353,6 +353,7 @@ tools.push({
     required: ["query"],
   },
 });
+// Expose a minimal, read-only subset of filesystem tools for clients
 tools.push({
   name: "fs_health",
   description: "Filesystem health and roots",
@@ -362,24 +363,6 @@ tools.push({
   name: "fs_roots",
   description: "List allowed filesystem roots",
   inputSchema: { type: "object", properties: {} },
-});
-tools.push({
-  name: "fs_exists",
-  description: "Check if a path exists",
-  inputSchema: {
-    type: "object",
-    properties: { path: { type: "string" }, cwd: { type: "string" } },
-    required: ["path"],
-  },
-});
-tools.push({
-  name: "fs_stat",
-  description: "Stat a path",
-  inputSchema: {
-    type: "object",
-    properties: { path: { type: "string" }, cwd: { type: "string" } },
-    required: ["path"],
-  },
 });
 tools.push({
   name: "fs_dir",
@@ -397,15 +380,6 @@ tools.push({
   },
 });
 tools.push({
-  name: "fs_resolve",
-  description: "Resolve input path to absolute within roots",
-  inputSchema: {
-    type: "object",
-    properties: { path: { type: "string" }, cwd: { type: "string" } },
-    required: ["path"],
-  },
-});
-tools.push({
   name: "fs_read",
   description: "Read file contents",
   inputSchema: {
@@ -417,87 +391,6 @@ tools.push({
       maxBytes: { type: "number" },
     },
     required: ["path"],
-  },
-});
-tools.push({
-  name: "fs_write",
-  description: "Write file contents",
-  inputSchema: {
-    type: "object",
-    properties: {
-      path: { type: "string" },
-      cwd: { type: "string" },
-      content: { type: "string" },
-      encoding: { type: "string", enum: ["utf8", "base64"] },
-      create: { type: "boolean" },
-      overwrite: { type: "boolean" },
-      mkdirp: { type: "boolean" },
-    },
-    required: ["path", "content"],
-  },
-});
-tools.push({
-  name: "fs_mkdir",
-  description: "Create directory",
-  inputSchema: {
-    type: "object",
-    properties: {
-      path: { type: "string" },
-      cwd: { type: "string" },
-      recursive: { type: "boolean" },
-    },
-    required: ["path"],
-  },
-});
-tools.push({
-  name: "fs_move",
-  description: "Move/rename file or directory",
-  inputSchema: {
-    type: "object",
-    properties: {
-      from: { type: "string" },
-      to: { type: "string" },
-      overwrite: { type: "boolean" },
-      mkdirp: { type: "boolean" },
-      cwd: { type: "string" },
-    },
-    required: ["from", "to"],
-  },
-});
-tools.push({
-  name: "fs_delete",
-  description: "Delete file or directory",
-  inputSchema: {
-    type: "object",
-    properties: {
-      path: { type: "string" },
-      cwd: { type: "string" },
-      recursive: { type: "boolean" },
-    },
-    required: ["path"],
-  },
-});
-tools.push({
-  name: "fs_find",
-  description: "Find files under cwd (simple glob)",
-  inputSchema: {
-    type: "object",
-    properties: {
-      cwd: { type: "string" },
-      glob: { type: "string" },
-      includeHidden: { type: "boolean" },
-      limit: { type: "number" },
-    },
-    required: ["cwd"],
-  },
-});
-tools.push({
-  name: "fs_complete",
-  description: "Tab-complete a path-like input",
-  inputSchema: {
-    type: "object",
-    properties: { cwd: { type: "string" }, input: { type: "string" } },
-    required: ["input"],
   },
 });
 
@@ -591,6 +484,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
   try {
+    // Only allow calling tools that are explicitly registered/exposed
+    const exposedToolNames = new Set(tools.map((t) => t.name));
+    if (!exposedToolNames.has(name)) {
+      throw new MCPError(`Unknown or disabled tool: ${name}`, "BAD_REQUEST");
+    }
     switch (name) {
       // Gmail endpoints
       case "list_email":

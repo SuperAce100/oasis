@@ -9,8 +9,10 @@ import { TerminalApp } from "@/components/apps/terminal";
 import {
   onOpenTerminal,
   onOpenMail,
+  onOpenFiles,
   type OpenTerminalEvent,
   type OpenMailEvent,
+  type OpenFilesEvent,
 } from "@/lib/os-events";
 import { CalendarApp } from "@/components/apps/calendar";
 import { MailApp } from "@/components/apps/mail";
@@ -25,6 +27,7 @@ export default function OS() {
   const [isCalendarOpen, setIsCalendarOpen] = React.useState(false);
   const [isMailOpen, setIsMailOpen] = React.useState(false);
   const [isFilesOpen, setIsFilesOpen] = React.useState(false);
+  const [filesDeeplink, setFilesDeeplink] = React.useState<OpenFilesEvent | null>(null);
   const [isWelcomeOpen, setIsWelcomeOpen] = React.useState(true);
   // Agent overlay state
   const [isAgentVisible, setIsAgentVisible] = React.useState(false);
@@ -90,9 +93,14 @@ export default function OS() {
       setIsMailOpen(true);
       setMailFocusBump((n) => n + 1);
     });
+    const offFiles = onOpenFiles((detail) => {
+      setFilesDeeplink(detail);
+      setIsFilesOpen(true);
+    });
     return () => {
       offTerm?.();
       offMail?.();
+      offFiles?.();
     };
   }, []);
 
@@ -164,9 +172,15 @@ export default function OS() {
             initialHeight={520}
             minWidth={640}
             minHeight={420}
-            onClose={() => setIsFilesOpen(false)}
+            onClose={() => {
+              setIsFilesOpen(false);
+              setFilesDeeplink(null);
+            }}
           >
-            <FilesApp className="h-full" />
+            <FilesApp
+              className="h-full"
+              data-deeplink={filesDeeplink ? JSON.stringify(filesDeeplink) : undefined}
+            />
           </Window>
         )}
 
