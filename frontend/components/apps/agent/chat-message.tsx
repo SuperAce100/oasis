@@ -5,8 +5,14 @@ import { cva } from "class-variance-authority";
 import Markdown from "@/components/ui/markdown";
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { Copy, Check, Link as LinkIcon, FileText } from "lucide-react";
+import { Copy, Check, Link as LinkIcon, FileText, BrainIcon } from "lucide-react";
 import type { UIMessage } from "ai";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 const userMessageVariants = cva(
   "flex flex-col gap-2 animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-10",
@@ -68,7 +74,7 @@ export default function ChatMessage({
           onClick={copyToClipboard}
           variant="ghost"
           size="iconSm"
-          className="absolute right-1 bottom-1 bg-transparent text-muted-foreground hover:bg-muted focus-visible:ring-0 active:bg-muted"
+          className="bg-transparent -my-2 text-muted-foreground hover:bg-foreground/10 focus-visible:ring-0 active:bg-foreground/10"
           aria-label={copied ? "Copied" : "Copy to clipboard"}
         >
           <span className="sr-only">{copied ? "Copied" : "Copy"}</span>
@@ -88,7 +94,18 @@ export default function ChatMessage({
 }
 
 function renderMessageContent(message: UIMessage) {
-  // Render selected part kinds from UIMessage
+  // Combine all reasoning parts into one collapsible block
+  const reasoningTexts: string[] = [];
+  for (const p of message.parts as unknown[]) {
+    if (isReasoningUIPart(p)) {
+      const t = p.text ?? "";
+      if (t.length > 0) reasoningTexts.push(t);
+    }
+  }
+  const combinedReasoning = reasoningTexts.join("\n\n");
+
+  let renderedReasoning = false;
+
   return (
     <div className="flex flex-col gap-2">
       {message.parts.map((part, idx) => {
@@ -96,11 +113,27 @@ function renderMessageContent(message: UIMessage) {
           return <Markdown key={idx}>{part.text ?? ""}</Markdown>;
         }
         if (isReasoningUIPart(part)) {
+          if (renderedReasoning || combinedReasoning.length === 0) return null;
+          renderedReasoning = true;
           return (
-            <div key={idx} className="rounded-md bg-amber-50 px-3 py-2 text-amber-900">
-              <div className="text-xs font-semibold">Reasoning</div>
-              <div className="text-sm opacity-90">{part.text ?? ""}</div>
-            </div>
+            <Accordion
+              key={`reasoning-${idx}`}
+              className="-my-1 text-sm opacity-70"
+              type="single"
+              collapsible
+              defaultValue="reasoning"
+            >
+              <AccordionItem value="reasoning">
+                <AccordionTrigger className="py-2">
+                  <div className="flex items-center gap-2">
+                    <BrainIcon className="size-4" /> Thought process
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <Markdown className="text-sm opacity-90">{combinedReasoning}</Markdown>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           );
         }
         if (isSourceUrlUIPart(part)) {
@@ -156,6 +189,9 @@ function renderMessageContent(message: UIMessage) {
             </div>
           );
         }
+        if (isStepStartUIPart(part)) {
+          return null;
+        }
         return (
           <pre key={idx} className="rounded-md bg-stone-50 px-2 py-1 text-[10px] text-stone-700">
             {JSON.stringify(part, null, 2)}
@@ -187,6 +223,7 @@ function getAvatarFromMetadata(message: UIMessage): string | null {
 }
 
 // ---------- Type guards for UIMessage parts ----------
+type StepStartUIPart = { type: "step-start"; text?: string; state?: "streaming" | "done" };
 type TextUIPart = { type: "text"; text?: string; state?: "streaming" | "done" };
 type ReasoningUIPart = {
   type: "reasoning";
@@ -206,6 +243,10 @@ type ToolUIPart = { type: string; state?: unknown };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function isStepStartUIPart(p: unknown): p is StepStartUIPart {
+  return isRecord(p) && p.type === "step-start";
 }
 
 function isTextUIPart(p: unknown): p is TextUIPart {
