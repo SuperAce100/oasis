@@ -5,14 +5,15 @@ import { cva } from "class-variance-authority";
 import Markdown from "@/components/ui/markdown";
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { Copy, Check, Link as LinkIcon, FileText, BrainIcon } from "lucide-react";
-import type { UIMessage } from "ai";
+import { Copy, Check, Link as LinkIcon, FileText, BrainIcon, Wrench } from "lucide-react";
+import type { DynamicToolUIPart, UIMessage } from "ai";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { CodeBlock } from "@/components/ui/code-block";
 
 const userMessageVariants = cva(
   "flex flex-col gap-2 animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-10",
@@ -107,7 +108,7 @@ function renderMessageContent(message: UIMessage) {
   let renderedReasoning = false;
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2 max-w-full">
       {message.parts.map((part, idx) => {
         if (isTextUIPart(part)) {
           return <Markdown key={idx}>{part.text ?? ""}</Markdown>;
@@ -182,10 +183,21 @@ function renderMessageContent(message: UIMessage) {
               key={idx}
               className="inline-flex w-fit items-center gap-2 rounded-md border bg-white/60 px-2 py-1 text-xs"
             >
-              <span className="rounded-sm bg-stone-800 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-                Tool
-              </span>
+              <Wrench className="size-4" />
+              {part.toolName}
+              {/* {part.input.} */}
               {part.state && <span className="text-stone-600">{String(part.state)}</span>}
+            </div>
+          );
+        }
+        if (isDynamicToolUIPart(part)) {
+          return (
+            <div
+              key={idx}
+              className="inline-flex w-fit items-center gap-2 rounded-md border bg-white/60 px-2 py-1 text-xs"
+            >
+              <Wrench className="size-4" />
+              {part.toolName}
             </div>
           );
         }
@@ -193,9 +205,12 @@ function renderMessageContent(message: UIMessage) {
           return null;
         }
         return (
-          <pre key={idx} className="rounded-md bg-stone-50 px-2 py-1 text-[10px] text-stone-700">
-            {JSON.stringify(part, null, 2)}
-          </pre>
+          <CodeBlock
+            key={idx}
+            language="json"
+            className="rounded-md bg-stone-50 px-2 py-1 text-[10px] text-stone-700 w-full overflow-hidden"
+            code={JSON.stringify(part, null, 2)}
+          />
         );
       })}
     </div>
@@ -270,5 +285,8 @@ function isFileUIPart(p: unknown): p is FileUIPart {
   return isRecord(p) && p.type === "file" && typeof p.url === "string";
 }
 function isToolUIPart(p: unknown): p is ToolUIPart {
-  return isRecord(p) && typeof p.type === "string" && p.type.startsWith("tool-");
+  return isRecord(p) && typeof p.type === "string" && p.type.includes("tool");
+}
+function isDynamicToolUIPart(p: unknown): p is DynamicToolUIPart {
+  return isRecord(p) && p.type === "dynamic-tool" && typeof p.toolName === "string";
 }
