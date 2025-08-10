@@ -57,18 +57,33 @@ export function Sidebar(props: {
   return (
     <aside className="col-span-4 overflow-hidden flex flex-col">
       {/* Gmail Status Indicator */}
-      <div className="p-3 border-b bg-background/50">
-        <div className="flex items-center gap-2 text-sm">
-          <div className={`w-2 h-2 rounded-full ${isGmailConnected ? 'bg-green-500' : 'bg-yellow-500'}`} />
-          <span className={isGmailConnected ? 'text-green-700' : 'text-yellow-700'}>
-            {isGmailConnected ? 'Gmail Connected' : 'Gmail Not Configured'}
+      <div className="p-2 flex flex-row justify-between w-full">
+        <div className="flex items-center gap-1 text-xs">
+          <div
+            className={`w-2 h-2 rounded-full ${
+              isGmailConnected ? "bg-green-500" : "bg-yellow-500"
+            }`}
+          />
+          <span
+            className={cn(
+              "uppercase tracking-wide",
+              isGmailConnected ? "text-green-700" : "text-yellow-700"
+            )}
+          >
+            {isGmailConnected ? "Connected" : "Disconnected"}
           </span>
+          {!isGmailConnected && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Set up Gmail credentials in the backend to use real email
+            </p>
+          )}
         </div>
-        {!isGmailConnected && (
-          <p className="text-xs text-muted-foreground mt-1">
-            Set up Gmail credentials in the backend to use real email
-          </p>
-        )}
+        <ComposeDialog
+          onSent={async () => {
+            await onRefreshAfterSend();
+            setFolderId("sent");
+          }}
+        />
       </div>
       <div className="px-2 py-2 flex items-center gap-2">
         <div className="relative w-full">
@@ -82,43 +97,41 @@ export function Sidebar(props: {
         </div>
       </div>
       <nav className="px-2 pb-2 flex gap-2 justify-between">
-        <ComposeDialog
-          onSent={async () => {
-            await onRefreshAfterSend();
-            setFolderId("sent");
-          }}
-        />
         <Button
           onClick={() => setFolderId("inbox")}
           variant="outline"
           className={cn(folderId === "inbox" && "bg-primary/10 border-primary/50")}
-          size="iconLg"
+          size="default"
         >
           <Inbox className="size-4" />
+          Inbox
         </Button>
         <Button
           onClick={() => setFolderId("sent")}
           variant="outline"
           className={cn(folderId === "sent" && "bg-primary/10 border-primary/50")}
-          size="iconLg"
+          size="default"
         >
           <Send className="size-4" />
+          Sent
         </Button>
         <Button
           onClick={() => setFolderId("archive")}
           variant="outline"
           className={cn(folderId === "archive" && "bg-primary/10 border-primary/50")}
-          size="iconLg"
+          size="default"
         >
           <Archive className="size-4" />
+          Archive
         </Button>
         <Button
           onClick={() => setFolderId("trash")}
           variant="outline"
           className={cn(folderId === "trash" && "bg-primary/10 border-primary/50")}
-          size="iconLg"
+          size="default"
         >
           <Trash2 className="size-4" />
+          Trash
         </Button>
       </nav>
       <div className="px-2 pb-2 flex items-center gap-2 text-xs">

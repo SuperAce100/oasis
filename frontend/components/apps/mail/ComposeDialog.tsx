@@ -90,8 +90,9 @@ export function ComposeDialog({ onSent }: { onSent: () => void | Promise<void> }
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="iconLg" className="gap-2">
+        <Button size="default" className="">
           <Plus className="size-4" />
+          Compose
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-2xl z-[900]">

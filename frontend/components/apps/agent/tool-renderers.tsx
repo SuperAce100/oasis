@@ -124,7 +124,14 @@ function MailTool({
   state?: unknown;
 }) {
   const messageId = typeof input?.messageId === "string" ? (input?.messageId as string) : undefined;
-  const query = typeof input?.query === "string" ? (input?.query as string) : undefined;
+  // Be lenient about where the model places the search text
+  const query =
+    (typeof input?.query === "string" && (input?.query as string)) ||
+    (typeof (input as any)?.q === "string" && ((input as any).q as string)) ||
+    (typeof (input as any)?.text === "string" && ((input as any).text as string)) ||
+    (typeof (input as any)?.subjectContains === "string" &&
+      ((input as any).subjectContains as string)) ||
+    undefined;
   const openedRef = React.useRef(false);
   React.useEffect(() => {
     if (openedRef.current) return;

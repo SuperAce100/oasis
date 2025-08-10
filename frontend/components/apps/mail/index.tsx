@@ -34,6 +34,17 @@ export function MailApp({ className, ...props }: MailAppProps) {
 
   // Apply deeplink when it changes (works if window already open)
   const lastDeeplinkRef = React.useRef<string | undefined>(undefined);
+  // Sanitize query from deeplinks: remove wrapping quotes and stray edges
+  const sanitizeQuery = React.useCallback((q?: string): string => {
+    if (!q) return "";
+    let s = q.trim();
+    if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+      s = s.slice(1, -1).trim();
+    }
+    s = s.replace(/^['\"]+/, "").replace(/['\"]+$/, "");
+    return s;
+  }, []);
+
   React.useEffect(() => {
     const raw = (props as any)["data-deeplink"] as string | undefined;
     if (!raw || raw === lastDeeplinkRef.current) return;
@@ -46,7 +57,7 @@ export function MailApp({ className, ...props }: MailAppProps) {
           break;
         }
         case "search": {
-          setQuery(parsed.query ?? "");
+          setQuery(sanitizeQuery(parsed.query));
           setFolderId("inbox");
           setSelectedId(null);
           break;
@@ -55,7 +66,7 @@ export function MailApp({ className, ...props }: MailAppProps) {
           if (parsed.folderId) setFolderId(parsed.folderId);
           if (typeof parsed.unreadOnly === "boolean") setUnreadOnly(parsed.unreadOnly);
           if (parsed.orderBy) setOrderBy(parsed.orderBy);
-          setQuery(parsed.query ?? "");
+          setQuery(sanitizeQuery(parsed.query));
           setSelectedId(null);
           break;
         }
@@ -68,7 +79,7 @@ export function MailApp({ className, ...props }: MailAppProps) {
     } catch {
       // ignore malformed deeplink
     }
-  }, [props]);
+  }, [props, sanitizeQuery]);
 
   React.useEffect(() => {
     if (emails.length > 0 && !selectedId) setSelectedId(emails[0].id);
