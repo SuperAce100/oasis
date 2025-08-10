@@ -12,9 +12,11 @@
     "test": "vitest",
     "test:unit": "vitest --run",
     "test:integration": "node integration-tests/terminal-integration.test.js",
+    "test:fs": "node integration-tests/fs-integration.test.js",
     "test:agent": "node integration-tests/agent-integration.test.js",
     "test:gmail": "node integration-tests/gmail-integration.test.js",
-    "test:all": "npm run test:unit && npm run test:integration && npm run test:agent && npm run test:gmail",
+    "test:contacts": "node integration-tests/contacts-integration.test.js",
+    "test:all": "npm run test:unit && npm run test:integration && npm run test:fs && npm run test:agent && npm run test:gmail && npm run test:contacts",
     "clean": "rm -rf dist"
   },
   "dependencies": {

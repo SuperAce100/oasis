@@ -22,6 +22,22 @@ import { handleGitHubCreateIssue } from "./handlers/github.js";
 import { handleNotionGetPage } from "./handlers/notion.js";
 import { handleStatusGetJob, handleStatusListJobs } from "./handlers/status.js";
 import { handleTerminalExecute } from "./handlers/terminal.js";
+import { handleContactsList, handleContactsSearch } from "./handlers/contacts.js";
+import {
+  handleFsHealth,
+  handleFsRoots,
+  handleFsExists,
+  handleFsStat,
+  handleFsDir,
+  handleFsResolve,
+  handleFsRead,
+  handleFsWrite,
+  handleFsMkdir,
+  handleFsMove,
+  handleFsDelete,
+  handleFsFind,
+  handleFsComplete,
+} from "./handlers/fs.js";
 import { handleOpenApp } from "./handlers/open_app.js";
 import { handleDoAnything } from "./handlers/do_anything.js";
 import { logStart, logSuccess, logError, LogContext } from "./utils/logger.js";
@@ -294,6 +310,115 @@ tools.push({
   },
 });
 
+// Filesystem tools (simple, consistent names)
+// Contacts tools (Google People API)
+tools.push({
+  name: "list_contacts",
+  description: "List contacts (Google People API)",
+  inputSchema: { type: "object", properties: { limit: { type: "number" }, pageToken: { type: "string" } } },
+});
+tools.push({
+  name: "search_contacts",
+  description: "Search contacts (Google People API)",
+  inputSchema: { type: "object", properties: { query: { type: "string" }, limit: { type: "number" } }, required: ["query"] },
+});
+tools.push({ name: "fs_health", description: "Filesystem health and roots", inputSchema: { type: "object", properties: {} } });
+tools.push({ name: "fs_roots", description: "List allowed filesystem roots", inputSchema: { type: "object", properties: {} } });
+tools.push({
+  name: "fs_exists",
+  description: "Check if a path exists",
+  inputSchema: { type: "object", properties: { path: { type: "string" }, cwd: { type: "string" } }, required: ["path"] },
+});
+tools.push({
+  name: "fs_stat",
+  description: "Stat a path",
+  inputSchema: { type: "object", properties: { path: { type: "string" }, cwd: { type: "string" } }, required: ["path"] },
+});
+tools.push({
+  name: "fs_dir",
+  description: "List directory",
+  inputSchema: {
+    type: "object",
+    properties: {
+      path: { type: "string" },
+      cwd: { type: "string" },
+      includeHidden: { type: "boolean" },
+      limit: { type: "number" },
+      cursor: { type: "string" },
+    },
+    required: ["path"],
+  },
+});
+tools.push({
+  name: "fs_resolve",
+  description: "Resolve input path to absolute within roots",
+  inputSchema: { type: "object", properties: { path: { type: "string" }, cwd: { type: "string" } }, required: ["path"] },
+});
+tools.push({
+  name: "fs_read",
+  description: "Read file contents",
+  inputSchema: {
+    type: "object",
+    properties: {
+      path: { type: "string" },
+      cwd: { type: "string" },
+      encoding: { type: "string", enum: ["utf8", "base64"] },
+      maxBytes: { type: "number" },
+    },
+    required: ["path"],
+  },
+});
+tools.push({
+  name: "fs_write",
+  description: "Write file contents",
+  inputSchema: {
+    type: "object",
+    properties: {
+      path: { type: "string" },
+      cwd: { type: "string" },
+      content: { type: "string" },
+      encoding: { type: "string", enum: ["utf8", "base64"] },
+      create: { type: "boolean" },
+      overwrite: { type: "boolean" },
+      mkdirp: { type: "boolean" },
+    },
+    required: ["path", "content"],
+  },
+});
+tools.push({
+  name: "fs_mkdir",
+  description: "Create directory",
+  inputSchema: {
+    type: "object",
+    properties: { path: { type: "string" }, cwd: { type: "string" }, recursive: { type: "boolean" } },
+    required: ["path"],
+  },
+});
+tools.push({
+  name: "fs_move",
+  description: "Move/rename file or directory",
+  inputSchema: {
+    type: "object",
+    properties: { from: { type: "string" }, to: { type: "string" }, overwrite: { type: "boolean" }, mkdirp: { type: "boolean" }, cwd: { type: "string" } },
+    required: ["from", "to"],
+  },
+});
+tools.push({
+  name: "fs_delete",
+  description: "Delete file or directory",
+  inputSchema: { type: "object", properties: { path: { type: "string" }, cwd: { type: "string" }, recursive: { type: "boolean" } }, required: ["path"] },
+});
+tools.push({
+  name: "fs_find",
+  description: "Find files under cwd (simple glob)",
+  inputSchema: { type: "object", properties: { cwd: { type: "string" }, glob: { type: "string" }, includeHidden: { type: "boolean" }, limit: { type: "number" } }, required: ["cwd"] },
+});
+tools.push({
+  name: "fs_complete",
+  description: "Tab-complete a path-like input",
+  inputSchema: { type: "object", properties: { cwd: { type: "string" }, input: { type: "string" } }, required: ["input"] },
+});
+
 // New: Open app tool
 tools.push({
   name: "open_app",
@@ -425,11 +550,45 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case "execute_terminal":
         return await wrap("execute_terminal", handleTerminalExecute)(args);
 
+      // FS endpoints
+      case "fs_health":
+        return await wrap("fs_health", async () => handleFsHealth())(args);
+      case "fs_roots":
+        return await wrap("fs_roots", async () => handleFsRoots())(args);
+      case "fs_exists":
+        return await wrap("fs_exists", handleFsExists)(args);
+      case "fs_stat":
+        return await wrap("fs_stat", handleFsStat)(args);
+      case "fs_dir":
+        return await wrap("fs_dir", handleFsDir)(args);
+      case "fs_resolve":
+        return await wrap("fs_resolve", handleFsResolve)(args);
+      case "fs_read":
+        return await wrap("fs_read", handleFsRead)(args);
+      case "fs_write":
+        return await wrap("fs_write", handleFsWrite)(args);
+      case "fs_mkdir":
+        return await wrap("fs_mkdir", handleFsMkdir)(args);
+      case "fs_move":
+        return await wrap("fs_move", handleFsMove)(args);
+      case "fs_delete":
+        return await wrap("fs_delete", handleFsDelete)(args);
+      case "fs_find":
+        return await wrap("fs_find", handleFsFind)(args);
+      case "fs_complete":
+        return await wrap("fs_complete", handleFsComplete)(args);
+
       case "open_app":
         return await wrap("open_app", handleOpenApp)(args);
 
       case "do_anything":
         return await wrap("do_anything", handleDoAnything)(args);
+
+      // Contacts
+      case "list_contacts":
+        return await wrap("list_contacts", handleContactsList)(args);
+      case "search_contacts":
+        return await wrap("search_contacts", handleContactsSearch)(args);
 
       default:
         throw new MCPError(`Unknown tool: ${name}`, "BAD_REQUEST");
