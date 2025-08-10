@@ -9,20 +9,15 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { config } from 'dotenv';
 import { randomUUID } from 'crypto';
+import fs from 'fs';
+import path from 'path';
 
 import {
-  handleCalendarList,
-  handleCalendarCreate,
-  handleCalendarDelete,
-  handleCalendarCancel,
-  handleCalendarAccept,
-  handleCalendarTentative,
-  handleCalendarDecline,
-  handleEmailList,
-  handleEmailSearch,
-  handleEmailRead,
-  handleEmailSend
-} from './handlers/outlook.js';
+  handleGmailList,
+  handleGmailSearch,
+  handleGmailRead,
+  handleGmailSend
+} from './handlers/gmail.js';
 import { handleGitHubCreateIssue } from './handlers/github.js';
 import { handleNotionGetPage } from './handlers/notion.js';
 import { handleStatusGetJob, handleStatusListJobs } from './handlers/status.js';
@@ -36,7 +31,6 @@ config();
 // Environment configuration
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 const NOTION_TOKEN = process.env.NOTION_TOKEN;
-const OUTLOOK_TOKEN = process.env.OUTLOOK_TOKEN;
 
 // Server instance
 const server = new Server(
@@ -55,189 +49,64 @@ const server = new Server(
 // Tool definitions
 const tools: Tool[] = [];
 
-// Conditionally register Outlook tools
-if (OUTLOOK_TOKEN) {
-  // Calendar tools
-  tools.push({
-    name: 'calendar.list@v1',
-    description: 'List calendar events in a time range',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        calendarId: { type: 'string', description: 'Calendar ID (optional)' },
-        start: { type: 'string', format: 'date-time', description: 'Start time filter (ISO 8601)' },
-        end: { type: 'string', format: 'date-time', description: 'End time filter (ISO 8601)' },
-        query: { type: 'string', description: 'Search query for event subjects' },
-        includeCancelled: { type: 'boolean', description: 'Include cancelled events' },
-        limit: { type: 'number', minimum: 1, maximum: 100, description: 'Maximum events to return' },
-        orderBy: { type: 'string', enum: ['start', 'createdDateTime'], description: 'Sort order' }
-      }
-    }
-  });
-
-  tools.push({
-    name: 'calendar.create@v1',
-    description: 'Create a new calendar event',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        calendarId: { type: 'string', description: 'Calendar ID (optional)' },
-        subject: { type: 'string', minLength: 1, description: 'Event subject' },
-        body: { type: 'string', description: 'Event description' },
-        start: { type: 'string', format: 'date-time', description: 'Start time (ISO 8601)' },
-        end: { type: 'string', format: 'date-time', description: 'End time (ISO 8601)' },
-        attendees: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              email: { type: 'string', format: 'email' },
-              type: { type: 'string', enum: ['required', 'optional'] }
-            },
-            required: ['email']
-          },
-          description: 'Event attendees'
-        },
-        location: { type: 'string', description: 'Event location' },
-        isOnlineMeeting: { type: 'boolean', description: 'Create online meeting' },
-        onlineMeetingProvider: { type: 'string', enum: ['teamsForBusiness', 'skypeForBusiness'] },
-        reminderMinutesBeforeStart: { type: 'number', minimum: 0, description: 'Reminder time in minutes' }
-      },
-      required: ['subject', 'start', 'end']
-    }
-  });
-
-  tools.push({
-    name: 'calendar.delete@v1',
-    description: 'Permanently delete a calendar event',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        eventId: { type: 'string', minLength: 1, description: 'Event ID to delete' },
-        calendarId: { type: 'string', description: 'Calendar ID (optional)' },
-        sendCancellations: { type: 'boolean', description: 'Send cancellation notifications' }
-      },
-      required: ['eventId']
-    }
-  });
-
-  tools.push({
-    name: 'calendar.cancel@v1',
-    description: 'Cancel a meeting and notify attendees',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        eventId: { type: 'string', minLength: 1, description: 'Event ID to cancel' },
-        calendarId: { type: 'string', description: 'Calendar ID (optional)' },
-        comment: { type: 'string', description: 'Cancellation comment' }
-      },
-      required: ['eventId']
-    }
-  });
-
-  tools.push({
-    name: 'calendar.accept@v1',
-    description: 'Accept a meeting invitation',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        eventId: { type: 'string', minLength: 1, description: 'Event ID to accept' },
-        calendarId: { type: 'string', description: 'Calendar ID (optional)' },
-        comment: { type: 'string', description: 'Response comment' },
-        sendResponse: { type: 'boolean', description: 'Send response notification' }
-      },
-      required: ['eventId']
-    }
-  });
-
-  tools.push({
-    name: 'calendar.tentative@v1',
-    description: 'Tentatively accept a meeting invitation',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        eventId: { type: 'string', minLength: 1, description: 'Event ID to tentatively accept' },
-        calendarId: { type: 'string', description: 'Calendar ID (optional)' },
-        comment: { type: 'string', description: 'Response comment' },
-        sendResponse: { type: 'boolean', description: 'Send response notification' }
-      },
-      required: ['eventId']
-    }
-  });
-
-  tools.push({
-    name: 'calendar.decline@v1',
-    description: 'Decline a meeting invitation',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        eventId: { type: 'string', minLength: 1, description: 'Event ID to decline' },
-        calendarId: { type: 'string', description: 'Calendar ID (optional)' },
-        comment: { type: 'string', description: 'Response comment' },
-        sendResponse: { type: 'boolean', description: 'Send response notification' }
-      },
-      required: ['eventId']
-    }
-  });
-
+// Conditionally register Gmail tools
+if (process.env.GOOGLE_APPLICATION_CREDENTIALS || fs.existsSync(path.join(process.cwd(), 'credentials.json'))) {
   // Email tools
   tools.push({
-    name: 'email.list@v1',
-    description: 'List emails from a mailbox/folder',
+    name: 'gmail.list@v1',
+    description: 'List Gmail messages with optional filtering',
     inputSchema: {
       type: 'object',
       properties: {
-        mailboxId: { type: 'string', description: 'Mailbox ID (optional)' },
-        folderId: { type: 'string', description: 'Folder ID (optional)' },
-        query: { type: 'string', description: 'Search query' },
-        from: { type: 'string', description: 'Filter by sender email' },
-        unreadOnly: { type: 'boolean', description: 'Show only unread emails' },
-        limit: { type: 'number', minimum: 1, maximum: 100, description: 'Maximum emails to return' },
-        orderBy: { type: 'string', enum: ['receivedDateTime', 'subject'], description: 'Sort order' }
+        limit: { type: 'number', minimum: 1, maximum: 100, description: 'Maximum emails to return', default: 20 },
+        labelIds: { 
+          type: 'array', 
+          items: { type: 'string' },
+          description: 'Gmail label IDs to filter by'
+        },
+        query: { type: 'string', description: 'Gmail search query' },
+        unreadOnly: { type: 'boolean', description: 'Show only unread emails', default: false }
       }
     }
   });
 
   tools.push({
-    name: 'email.search@v1',
-    description: 'Full-text search over emails',
+    name: 'gmail.search@v1',
+    description: 'Search Gmail messages with advanced queries',
     inputSchema: {
       type: 'object',
       properties: {
-        mailboxId: { type: 'string', description: 'Mailbox ID (optional)' },
-        query: { type: 'string', minLength: 1, description: 'Search query' },
-        from: { type: 'string', description: 'Filter by sender email' },
-        to: { type: 'string', description: 'Filter by recipient email' },
-        subjectContains: { type: 'string', description: 'Subject contains text' },
-        since: { type: 'string', format: 'date-time', description: 'Date range start' },
-        until: { type: 'string', format: 'date-time', description: 'Date range end' },
-        limit: { type: 'number', minimum: 1, maximum: 100, description: 'Maximum results' }
+        query: { type: 'string', minLength: 1, description: 'Gmail search query (e.g., "from:example@gmail.com subject:meeting")' },
+        limit: { type: 'number', minimum: 1, maximum: 100, description: 'Maximum results to return', default: 20 },
+        labelIds: { 
+          type: 'array', 
+          items: { type: 'string' },
+          description: 'Gmail label IDs to filter by'
+        }
       },
       required: ['query']
     }
   });
 
   tools.push({
-    name: 'email.read@v1',
-    description: 'Fetch a single email with body and headers',
+    name: 'gmail.read@v1',
+    description: 'Fetch a single Gmail message with body and headers',
     inputSchema: {
       type: 'object',
       properties: {
-        messageId: { type: 'string', minLength: 1, description: 'Email message ID' },
-        mailboxId: { type: 'string', description: 'Mailbox ID (optional)' },
-        format: { type: 'string', enum: ['html', 'text'], description: 'Body format preference' }
+        messageId: { type: 'string', minLength: 1, description: 'Gmail message ID' },
+        format: { type: 'string', enum: ['full', 'minimal', 'raw'], description: 'Message format', default: 'full' }
       },
       required: ['messageId']
     }
   });
 
   tools.push({
-    name: 'email.send@v1',
-    description: 'Send a new email (optionally with attachments)',
+    name: 'gmail.send@v1',
+    description: 'Send a new email via Gmail',
     inputSchema: {
       type: 'object',
       properties: {
-        mailboxId: { type: 'string', description: 'Mailbox ID (optional)' },
         to: {
           type: 'array',
           items: { type: 'string', format: 'email' },
@@ -256,20 +125,7 @@ if (OUTLOOK_TOKEN) {
         },
         subject: { type: 'string', minLength: 1, description: 'Email subject' },
         body: { type: 'string', minLength: 1, description: 'Email body content' },
-        format: { type: 'string', enum: ['html', 'text'], description: 'Body format' },
-        attachments: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              filename: { type: 'string', minLength: 1 },
-              contentBytes: { type: 'string', description: 'Base64 encoded content' },
-              mimeType: { type: 'string' }
-            },
-            required: ['filename', 'contentBytes']
-          },
-          description: 'Email attachments'
-        }
+        format: { type: 'string', enum: ['html', 'text'], description: 'Body format', default: 'text' }
       },
       required: ['to', 'subject', 'body']
     }
@@ -442,73 +298,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   try {
     switch (name) {
-      // Outlook Calendar endpoints
-      case 'calendar.list@v1':
-        if (!OUTLOOK_TOKEN) {
-          throw new MCPError('Outlook token not configured', 'UNAUTHORIZED');
+      // Gmail endpoints
+      case 'gmail.list@v1':
+        if (!process.env.GOOGLE_APPLICATION_CREDENTIALS && !fs.existsSync(path.join(process.cwd(), 'credentials.json'))) {
+          throw new MCPError('Gmail credentials not configured', 'UNAUTHORIZED');
         }
-        return await wrap('calendar.list@v1', handleCalendarList)(args);
+        return await wrap('gmail.list@v1', handleGmailList)(args);
 
-      case 'calendar.create@v1':
-        if (!OUTLOOK_TOKEN) {
-          throw new MCPError('Outlook token not configured', 'UNAUTHORIZED');
+      case 'gmail.search@v1':
+        if (!process.env.GOOGLE_APPLICATION_CREDENTIALS && !fs.existsSync(path.join(process.cwd(), 'credentials.json'))) {
+          throw new MCPError('Gmail credentials not configured', 'UNAUTHORIZED');
         }
-        return await wrap('calendar.create@v1', handleCalendarCreate)(args);
+        return await wrap('gmail.search@v1', handleGmailSearch)(args);
 
-      case 'calendar.delete@v1':
-        if (!OUTLOOK_TOKEN) {
-          throw new MCPError('Outlook token not configured', 'UNAUTHORIZED');
+      case 'gmail.read@v1':
+        if (!process.env.GOOGLE_APPLICATION_CREDENTIALS && !fs.existsSync(path.join(process.cwd(), 'credentials.json'))) {
+          throw new MCPError('Gmail credentials not configured', 'UNAUTHORIZED');
         }
-        return await wrap('calendar.delete@v1', handleCalendarDelete)(args);
+        return await wrap('gmail.read@v1', handleGmailRead)(args);
 
-      case 'calendar.cancel@v1':
-        if (!OUTLOOK_TOKEN) {
-          throw new MCPError('Outlook token not configured', 'UNAUTHORIZED');
+      case 'gmail.send@v1':
+        if (!process.env.GOOGLE_APPLICATION_CREDENTIALS && !fs.existsSync(path.join(process.cwd(), 'credentials.json'))) {
+          throw new MCPError('Gmail credentials not configured', 'UNAUTHORIZED');
         }
-        return await wrap('calendar.cancel@v1', handleCalendarCancel)(args);
-
-      case 'calendar.accept@v1':
-        if (!OUTLOOK_TOKEN) {
-          throw new MCPError('Outlook token not configured', 'UNAUTHORIZED');
-        }
-        return await wrap('calendar.accept@v1', handleCalendarAccept)(args);
-
-      case 'calendar.tentative@v1':
-        if (!OUTLOOK_TOKEN) {
-          throw new MCPError('Outlook token not configured', 'UNAUTHORIZED');
-        }
-        return await wrap('calendar.tentative@v1', handleCalendarTentative)(args);
-
-      case 'calendar.decline@v1':
-        if (!OUTLOOK_TOKEN) {
-          throw new MCPError('Outlook token not configured', 'UNAUTHORIZED');
-        }
-        return await wrap('calendar.decline@v1', handleCalendarDecline)(args);
-
-      // Outlook Email endpoints
-      case 'email.list@v1':
-        if (!OUTLOOK_TOKEN) {
-          throw new MCPError('Outlook token not configured', 'UNAUTHORIZED');
-        }
-        return await wrap('email.list@v1', handleEmailList)(args);
-
-      case 'email.search@v1':
-        if (!OUTLOOK_TOKEN) {
-          throw new MCPError('Outlook token not configured', 'UNAUTHORIZED');
-        }
-        return await wrap('email.search@v1', handleEmailSearch)(args);
-
-      case 'email.read@v1':
-        if (!OUTLOOK_TOKEN) {
-          throw new MCPError('Outlook token not configured', 'UNAUTHORIZED');
-        }
-        return await wrap('email.read@v1', handleEmailRead)(args);
-
-      case 'email.send@v1':
-        if (!OUTLOOK_TOKEN) {
-          throw new MCPError('Outlook token not configured', 'UNAUTHORIZED');
-        }
-        return await wrap('email.send@v1', handleEmailSend)(args);
+        return await wrap('gmail.send@v1', handleGmailSend)(args);
 
       case 'github.create_issue@v1':
         if (!GITHUB_TOKEN) {
@@ -559,7 +372,7 @@ async function main() {
   // Log startup information (to stderr to avoid interfering with stdio protocol)
   console.error(`[STARTUP] Oasis Hub MCP Server v0.1.0`);
   console.error(`[STARTUP] Registered tools: ${tools.map(t => t.name).join(', ')}`);
-  console.error(`[STARTUP] Outlook integration: ${OUTLOOK_TOKEN ? 'enabled' : 'disabled'}`);
+      console.error(`[STARTUP] Gmail integration: ${(process.env.GOOGLE_APPLICATION_CREDENTIALS || fs.existsSync(path.join(process.cwd(), 'credentials.json'))) ? 'enabled' : 'disabled'}`);
   console.error(`[STARTUP] GitHub integration: ${GITHUB_TOKEN ? 'enabled' : 'disabled'}`);
   console.error(`[STARTUP] Notion integration: ${NOTION_TOKEN ? 'enabled' : 'disabled'}`);
   console.error(`[STARTUP] Starting stdio transport...`);
