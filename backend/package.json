@@ -24,7 +24,8 @@
     "dotenv": "^16.4.5",
     "google-auth-library": "^9.15.1",
     "googleapis": "^144.0.0",
-    "lru-cache": "^10.4.3"
+    "lru-cache": "^10.4.3",
+    "openai": "^4.55.4"
   },
   "devDependencies": {
     "@types/node": "^20.14.10",
