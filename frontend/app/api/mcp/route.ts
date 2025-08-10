@@ -46,17 +46,43 @@ class MCPClient {
   }
 
   private ensureStarted(): Promise<void> {
+    // If an old process is running with the legacy dist entry, restart with dev mode
+    if (this.process) {
+      const spawnArgs = Array.isArray((this.process as any).spawnargs)
+        ? ((this.process as any).spawnargs as string[])
+        : [];
+      const argsJoined = spawnArgs.join(" ");
+      const isLegacyDist =
+        argsJoined.includes("dist/index.js") && !argsJoined.includes("pnpm run dev");
+      const isExited = (this.process as any).exitCode !== null || (this.process as any).killed;
+      if (isLegacyDist || isExited) {
+        try {
+          this.process.kill();
+        } catch {}
+        this.process = null;
+        this.initialized = false;
+      }
+    }
     if (this.process && this.initialized) return Promise.resolve();
 
     return new Promise((resolve, reject) => {
       try {
         const backendDir = this.getBackendDir();
-        const distEntry = path.join(backendDir, "dist", "index.js");
-
+        // Prefer tsx directly to ensure we run source with sandbox logic
         let proc: ChildProcessWithoutNullStreams;
-        if (fs.existsSync(distEntry)) {
-          proc = spawn("node", [distEntry], { cwd: backendDir, stdio: ["pipe", "pipe", "pipe"] });
+        const tsxBin = path.join(
+          backendDir,
+          "node_modules",
+          ".bin",
+          process.platform === "win32" ? "tsx.cmd" : "tsx"
+        );
+        if (fs.existsSync(tsxBin)) {
+          proc = spawn(tsxBin, ["src/index.ts"], {
+            cwd: backendDir,
+            stdio: ["pipe", "pipe", "pipe"],
+          });
         } else {
+          // Fallback to npm script which should also invoke tsx
           proc = spawn("pnpm", ["run", "dev"], {
             cwd: backendDir,
             stdio: ["pipe", "pipe", "pipe"],
@@ -166,7 +192,8 @@ class MCPClient {
 // Singleton client across hot reloads
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const globalStore = globalThis as any;
-const MCP_KEY = "__OASIS_MCP_CLIENT__" as const;
+// Use a distinct key so we don't accidentally reuse a client instance created by other routes
+const MCP_KEY = "__OASIS_MCP_CLIENT_MCP__" as const;
 const mcpClient: MCPClient = globalStore[MCP_KEY] ?? new MCPClient();
 globalStore[MCP_KEY] = mcpClient;
 

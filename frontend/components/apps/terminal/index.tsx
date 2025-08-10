@@ -19,7 +19,7 @@ export function TerminalApp({ className, ...props }: TerminalAppProps) {
   const [inputValue, setInputValue] = React.useState<string>("");
   const [commandHistory, setCommandHistory] = React.useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = React.useState<number>(-1);
-  const [cwd, setCwd] = React.useState<string>("/home/oasis");
+  const [cwd, setCwd] = React.useState<string>("/");
 
   const outputRef = React.useRef<HTMLDivElement | null>(null);
   const bottomRef = React.useRef<HTMLDivElement | null>(null);
