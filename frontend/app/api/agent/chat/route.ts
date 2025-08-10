@@ -41,7 +41,9 @@ export async function POST(req: Request) {
     } catch {}
   }
   if (!apiKey) {
-    return new Response(JSON.stringify({ error: "OPENAI_API_KEY not found in env" }), { status: 500 });
+    return new Response(JSON.stringify({ error: "OPENAI_API_KEY not found in env" }), {
+      status: 500,
+    });
   }
   const openai = createOpenAI({ apiKey, baseURL: "https://api.openai.com/v1" });
 
@@ -61,7 +63,7 @@ export async function POST(req: Request) {
     onFinish: async (message) => {
       await mcpClient.close();
     },
-    stopWhen: stepCountIs(20),
+    stopWhen: stepCountIs(100),
   });
 
   return result.toUIMessageStreamResponse();

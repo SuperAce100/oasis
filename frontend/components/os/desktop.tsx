@@ -11,7 +11,7 @@ export function Desktop({ className, children, ...props }: DesktopProps) {
     <div
       className={cn(
         "absolute inset-0 w-full h-full pt-8 pb-18",
-        "bg-[url('/background2.jpg')] bg-cover bg-center",
+        "bg-[url('/background.jpg')] bg-cover bg-center",
         className
       )}
       {...props}

@@ -3,7 +3,12 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-export type TerminalAppProps = React.HTMLAttributes<HTMLDivElement>;
+export type TerminalAppProps = React.HTMLAttributes<HTMLDivElement> & {
+  // Preferred: structured deeplink object
+  deeplink?: { command?: string; cwd?: string };
+  // Back-compat: JSON string via data attribute
+  "data-deeplink"?: string;
+};
 
 type OutputEntry =
   | { type: "cmd"; prompt: string; text: string }
@@ -19,7 +24,7 @@ export function TerminalApp({ className, ...props }: TerminalAppProps) {
   const [inputValue, setInputValue] = React.useState<string>("");
   const [commandHistory, setCommandHistory] = React.useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = React.useState<number>(-1);
-  const [cwd, setCwd] = React.useState<string>("/home/oasis");
+  const [cwd, setCwd] = React.useState<string>("/");
 
   const outputRef = React.useRef<HTMLDivElement | null>(null);
   const bottomRef = React.useRef<HTMLDivElement | null>(null);
@@ -30,6 +35,36 @@ export function TerminalApp({ className, ...props }: TerminalAppProps) {
     // Auto-focus input on mount
     inputRef.current?.focus();
   }, []);
+
+  // Execute deeplink command on mount and when it changes
+  const deeplinkRaw = (props as any)["data-deeplink"] as string | undefined;
+  const deeplinkObj = (props as any).deeplink as { command?: string; cwd?: string } | undefined;
+  const lastDeeplinkSigRef = React.useRef<string | undefined>(undefined);
+  React.useEffect(() => {
+    const signature = JSON.stringify(
+      deeplinkObj ? { obj: deeplinkObj } : { raw: deeplinkRaw ?? null }
+    );
+    if (!signature || signature === lastDeeplinkSigRef.current) return;
+    lastDeeplinkSigRef.current = signature;
+
+    let payload: { command?: string; cwd?: string } | undefined;
+    if (deeplinkObj) {
+      payload = deeplinkObj;
+    } else if (deeplinkRaw) {
+      try {
+        payload = JSON.parse(deeplinkRaw) as { command?: string; cwd?: string };
+      } catch {
+        payload = undefined;
+      }
+    }
+
+    if (!payload) return;
+    if (payload.cwd) setCwd(payload.cwd);
+    if (typeof payload.command === "string" && payload.command.trim().length > 0) {
+      void runCommand(payload.command, { cwd: payload.cwd });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deeplinkRaw, deeplinkObj]);
 
   React.useEffect(() => {
     // Keep scrolled to bottom when output changes
@@ -86,7 +121,7 @@ export function TerminalApp({ className, ...props }: TerminalAppProps) {
 
   // (No local filesystem logic; all command execution handled by API)
 
-  async function runCommand(rawInput: string) {
+  async function runCommand(rawInput: string, options?: { cwd?: string }) {
     const input = rawInput.trim();
     if (input.length === 0) return;
     // Print prompt (path only) + command, with colored prompt in history
@@ -105,7 +140,7 @@ export function TerminalApp({ className, ...props }: TerminalAppProps) {
       const res = await fetch("/api/terminal", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command: input, cwd }),
+        body: JSON.stringify({ command: input, cwd: options?.cwd ?? cwd }),
       });
       if (!res.ok) throw new Error("Request failed");
       const data = (await res.json()) as { stdout?: string[]; cwd?: string; error?: string };

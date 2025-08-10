@@ -106,6 +106,22 @@ function renderMessageContent(message: UIMessage) {
   }
   const combinedReasoning = reasoningTexts.join("\n\n");
 
+  // Detect if any reasoning chunk is still streaming
+  const anyReasoningStreaming = (message.parts as unknown[]).some(
+    (p) => isReasoningUIPart(p) && p.state === "streaming"
+  );
+
+  // Controlled open state so users can expand/collapse, but auto-collapse once streaming ends
+  const [reasoningOpen, setReasoningOpen] = React.useState<boolean>(false);
+  React.useEffect(() => {
+    if (anyReasoningStreaming) {
+      setReasoningOpen(true);
+    } else {
+      // Auto-collapse when streaming completes
+      setReasoningOpen(false);
+    }
+  }, [anyReasoningStreaming]);
+
   let renderedReasoning = false;
 
   return (
@@ -123,7 +139,8 @@ function renderMessageContent(message: UIMessage) {
               className="-my-1 text-sm opacity-70"
               type="single"
               collapsible
-              defaultValue="reasoning"
+              value={reasoningOpen ? "reasoning" : undefined}
+              onValueChange={(val) => setReasoningOpen(val === "reasoning")}
             >
               <AccordionItem value="reasoning">
                 <AccordionTrigger className="py-2">
@@ -178,7 +195,7 @@ function renderMessageContent(message: UIMessage) {
             </a>
           );
         }
-        if (isToolUIPart(part) || isDynamicToolUIPart(part)) {
+        if (isDynamicToolUIPart(part) || isLegacyToolUIPart(part)) {
           const { toolName, input, state } = extractToolInfo(part);
           return <RenderTool key={idx} toolName={toolName} input={input} state={state} />;
         }
@@ -236,7 +253,6 @@ type SourceDocumentUIPart = {
 };
 type FileUIPart = { type: "file"; url: string; filename?: string; mediaType: string };
 
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -265,20 +281,37 @@ function isSourceDocumentUIPart(p: unknown): p is SourceDocumentUIPart {
 function isFileUIPart(p: unknown): p is FileUIPart {
   return isRecord(p) && p.type === "file" && typeof p.url === "string";
 }
-function isToolUIPart(p: unknown): p is ToolUIPart {
-  return isRecord(p) && typeof p.type === "string" && p.type.includes("tool");
+// Legacy tool part from older UIMessage variants
+type LegacyToolUIPart = {
+  type: `tool-${string}`;
+  toolCallId: string;
+  state:
+    | "input-streaming"
+    | "input-complete"
+    | "provider-started"
+    | "output-streaming"
+    | "output-error"
+    | "output-complete";
+  input?: unknown;
+  output?: unknown;
+  errorText?: string;
+};
+
+function isLegacyToolUIPart(p: unknown): p is LegacyToolUIPart {
+  return isRecord(p) && typeof p.type === "string" && p.type.startsWith("tool-");
 }
+
 function isDynamicToolUIPart(p: unknown): p is DynamicToolUIPart {
   return isRecord(p) && p.type === "dynamic-tool" && typeof p.toolName === "string";
 }
 
-function extractToolInfo(part: DynamicToolUIPart): {
+function extractToolInfo(part: DynamicToolUIPart | LegacyToolUIPart): {
   toolName: string;
   input?: Record<string, unknown>;
   state?: unknown;
 } {
-  const toolName = part.toolName ?? part.type.replace("tool-", "");
-  const input = part.input;
-  const state = part.state;
+  const toolName = (part as any).toolName ?? (part as any).type?.replace?.("tool-", "");
+  const input = (part as any).input as Record<string, unknown> | undefined;
+  const state = (part as any).state;
   return { toolName, input, state };
 }

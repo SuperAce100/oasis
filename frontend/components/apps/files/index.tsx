@@ -5,7 +5,9 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useBackend } from "@/hooks/use-backend";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { CodeBlock } from "@/components/ui/code-block";
 import {
   Folder as FolderIcon,
   File as FileIcon,
@@ -16,6 +18,7 @@ import {
 } from "lucide-react";
 
 export type FilesAppProps = React.HTMLAttributes<HTMLDivElement>;
+type FilesDeeplink = { path?: string } | undefined;
 
 type DirEntry = { name: string; kind: "file" | "directory" };
 
@@ -23,19 +26,7 @@ function shellQuote(token: string): string {
   return `'${token.replace(/'/g, "'\\''")}'`;
 }
 
-async function terminalCall(params: { command: string; cwd: string }): Promise<{
-  stdout?: string[];
-  cwd?: string;
-  error?: string;
-}> {
-  const res = await fetch("/api/terminal", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(params),
-  });
-  if (!res.ok) throw new Error("terminal request failed");
-  return (await res.json()) as { stdout?: string[]; cwd?: string; error?: string };
-}
+// Direct MCP calls instead of shelling out via terminal
 
 function parseLsOnePerLine(lines: string[] | undefined): DirEntry[] {
   const items = (lines ?? [])
@@ -54,6 +45,20 @@ function parseLsOnePerLine(lines: string[] | undefined): DirEntry[] {
 function getExtension(name: string): string {
   const i = name.lastIndexOf(".");
   return i >= 0 ? name.slice(i + 1).toLowerCase() : "";
+}
+
+function isLikelyBinaryText(sample: string): boolean {
+  // Heuristic: many replacement characters or control chars suggest binary
+  const len = sample.length;
+  if (len === 0) return false;
+  let suspicious = 0;
+  for (let i = 0; i < Math.min(len, 2048); i++) {
+    const c = sample.charCodeAt(i);
+    // control chars excluding tab/newline/carriage return
+    if (c < 9 || (c > 13 && c < 32)) suspicious++;
+  }
+  const ratio = suspicious / Math.min(len, 2048);
+  return ratio > 0.05 || sample.includes("\uFFFD");
 }
 
 type IconComponent = React.ComponentType<{ size?: string | number; className?: string }>;
@@ -102,46 +107,267 @@ function joinPath(base: string, part: string): string {
   return `${base}/${part}`;
 }
 
+function normalizeCwd(input: string): string {
+  let p = input.trim().replace(/\\/g, "/");
+  if (!p.startsWith("/")) p = "/" + p;
+  // remove trailing slash except for root
+  p = p.replace(/\/+$/, "");
+  return p.length === 0 ? "/" : p;
+}
+
 export function FilesApp({ className, ...props }: FilesAppProps) {
-  const [cwd, setCwd] = React.useState<string>("/home/oasis");
+  const { callTool } = useBackend();
+  const [fsRoot, setFsRoot] = React.useState<string>("");
+  const [cwd, setCwd] = React.useState<string>("");
   const [entries, setEntries] = React.useState<DirEntry[]>([]);
   const [selected, setSelected] = React.useState<DirEntry | null>(null);
   const [preview, setPreview] = React.useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = React.useState<boolean>(false);
   const [previewTitle, setPreviewTitle] = React.useState<string>("");
   const [previewLoading, setPreviewLoading] = React.useState<boolean>(false);
+  const [previewKind, setPreviewKind] = React.useState<
+    "text" | "code" | "image" | "pdf" | "unknown"
+  >("unknown");
+  const [previewSrc, setPreviewSrc] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [deeplinkOpenFile, setDeeplinkOpenFile] = React.useState<string | null>(null);
 
   const refresh = React.useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const { stdout, error: err } = await terminalCall({ command: "ls -1Ap", cwd });
-      if (err) setError(err);
-      setEntries(parseLsOnePerLine(stdout));
-    } catch {
+      const result = await callTool<{ items: { name: string; type: "file" | "dir" }[] }>("fs_dir", {
+        path: ".",
+        cwd,
+      });
+      const items = (result as any)?.items as { name: string; type: "file" | "dir" }[];
+      const mapped: DirEntry[] = (items ?? [])
+        .map((it) => ({
+          name: it.name,
+          kind: it.type === "dir" ? ("directory" as const) : ("file" as const),
+        }))
+        .sort((a, b) =>
+          a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === "directory" ? -1 : 1
+        );
+      setEntries(mapped);
+    } catch (e) {
+      console.error("[FilesApp] Failed to list directory:", e);
       setError("Failed to list directory");
     } finally {
       setLoading(false);
     }
-  }, [cwd]);
+  }, [cwd, callTool]);
+
+  const openFilePreviewRef = React.useRef<null | ((name: string) => Promise<void>)>(null);
+  const openFilePreview = React.useCallback(
+    async (name: string) => {
+      // Assign function to ref to avoid ordering/lint issues with effects
+      if (!openFilePreviewRef.current) {
+        openFilePreviewRef.current = async (n: string) => {
+          setPreviewOpen(true);
+          setPreviewTitle(n);
+          setPreviewLoading(true);
+          setError(null);
+          setPreview(null);
+          setPreviewSrc(null);
+          try {
+            const ext = getExtension(n);
+            const imageExt = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"]);
+            const codeExt = new Set([
+              "ts",
+              "tsx",
+              "js",
+              "jsx",
+              "json",
+              "py",
+              "go",
+              "rs",
+              "java",
+              "cs",
+              "rb",
+              "php",
+              "sh",
+              "yml",
+              "yaml",
+              "md",
+              "txt",
+              "log",
+              "csv",
+            ]);
+
+            if (ext === "pdf") {
+              const res = await callTool<{ content?: string }>("fs_read", {
+                path: n,
+                cwd,
+                encoding: "base64",
+              });
+              const b64 = (res as any)?.content ?? "";
+              setPreviewKind("pdf");
+              setPreviewSrc(`data:application/pdf;base64,${b64}`);
+            } else if (imageExt.has(ext)) {
+              const res = await callTool<{ content?: string }>("fs_read", {
+                path: n,
+                cwd,
+                encoding: "base64",
+              });
+              const b64 = (res as any)?.content ?? "";
+              const mime =
+                ext === "svg" ? "image/svg+xml" : `image/${ext === "jpg" ? "jpeg" : ext}`;
+              setPreviewKind("image");
+              setPreviewSrc(`data:${mime};base64,${b64}`);
+            } else if (codeExt.has(ext)) {
+              const res = await callTool<{ content?: string }>("fs_read", {
+                path: n,
+                cwd,
+                encoding: "utf8",
+                maxBytes: 1024 * 1024,
+              });
+              const text = (res as any)?.content ?? "";
+              setPreviewKind(ext === "md" || ext === "txt" || ext === "log" ? "text" : "code");
+              setPreview(text.length > 0 ? text : "(empty file)\n");
+            } else {
+              // Fallback: attempt utf8 text, then upgrade if looks binary (common for images)
+              const res = await callTool<{ content?: string }>("fs_read", {
+                path: n,
+                cwd,
+                encoding: "utf8",
+                maxBytes: 256 * 1024,
+              });
+              const text = (res as any)?.content ?? "";
+              if (
+                isLikelyBinaryText(text) ||
+                /^(?:.PNG|%PDF|GIF8|.JFIF|.Exif)/.test(text.slice(0, 16))
+              ) {
+                // Try rendering as image or pdf
+                if (ext === "pdf") {
+                  const b = await callTool<{ content?: string }>("fs_read", {
+                    path: n,
+                    cwd,
+                    encoding: "base64",
+                  });
+                  setPreviewKind("pdf");
+                  setPreviewSrc(`data:application/pdf;base64,${(b as any)?.content ?? ""}`);
+                } else {
+                  const b = await callTool<{ content?: string }>("fs_read", {
+                    path: n,
+                    cwd,
+                    encoding: "base64",
+                  });
+                  const mime =
+                    ext === "svg"
+                      ? "image/svg+xml"
+                      : `image/${ext === "jpg" ? "jpeg" : ext || "png"}`;
+                  setPreviewKind("image");
+                  setPreviewSrc(`data:${mime};base64,${(b as any)?.content ?? ""}`);
+                }
+              } else {
+                setPreviewKind("text");
+                setPreview(text.length > 0 ? text : "(empty file)\n");
+              }
+            }
+          } catch {
+            setError("Failed to open file");
+            setPreviewKind("unknown");
+          } finally {
+            setPreviewLoading(false);
+          }
+        };
+      }
+      await openFilePreviewRef.current(name);
+    },
+    [cwd, callTool]
+  );
 
   React.useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    // Initialize CWD from allowed roots or refresh when set
+    if (!cwd || !fsRoot) {
+      (async () => {
+        try {
+          const rootsRes = await callTool<{ roots?: string[] }>("fs_roots", {});
+          const firstRoot = Array.isArray((rootsRes as any)?.roots)
+            ? ((rootsRes as any).roots as string[])[0]
+            : undefined;
+          if (firstRoot) {
+            const r = normalizeCwd(firstRoot);
+            setFsRoot(r);
+            setCwd(r);
+          }
+        } catch {
+          // ignore
+        }
+      })();
+    } else {
+      void refresh();
+    }
+  }, [cwd, fsRoot, callTool]);
+
+  // Deeplink support via data-deeplink attribute (reacts to changes)
+  React.useEffect(() => {
+    const raw = (props as any)["data-deeplink"] as string | undefined;
+    if (!raw) return;
+    try {
+      const d = JSON.parse(raw) as FilesDeeplink;
+      if (d?.path && typeof d.path === "string") {
+        const candidate = normalizeCwd(d.path);
+        // Try treating candidate as a directory; if it fails, open parent and preview file
+        (async () => {
+          try {
+            // Ensure root matches allowed root containing candidate
+            const rootsRes = await callTool<{ roots?: string[] }>("fs_roots", {});
+            const roots = (
+              Array.isArray((rootsRes as any)?.roots) ? ((rootsRes as any).roots as string[]) : []
+            ).map(normalizeCwd);
+            const containingRoot = roots.find((r) => candidate.startsWith(r));
+            if (containingRoot) {
+              setFsRoot(containingRoot);
+              await callTool("fs_dir", { path: ".", cwd: candidate });
+              setCwd(candidate);
+            }
+          } catch {
+            const parent = candidate.replace(/\/(?:[^/]+)$/, "");
+            const file = candidate.split("/").pop() || "";
+            if (fsRoot && parent.startsWith(fsRoot)) {
+              setCwd(parent.length === 0 ? fsRoot : parent);
+            }
+            setDeeplinkOpenFile(file);
+          }
+        })();
+      }
+    } catch {
+      // ignore
+    }
+  }, [(props as any)["data-deeplink"], callTool, fsRoot]);
+
+  // After listing completes, open file preview if requested by deeplink
+  React.useEffect(() => {
+    if (!deeplinkOpenFile || loading || !cwd) return;
+    (async () => {
+      try {
+        await openFilePreview(deeplinkOpenFile);
+      } finally {
+        setDeeplinkOpenFile(null);
+      }
+    })();
+  }, [deeplinkOpenFile, loading, cwd, openFilePreview]);
 
   function cwdSegments(): string[] {
-    if (cwd === "/") return ["/"];
-    const parts = cwd.replace(/^\/+/, "").split("/");
-    return ["/", ...parts.filter(Boolean)];
+    if (!fsRoot) return ["~"];
+    if (cwd === fsRoot) return ["~"];
+    const rel = cwd.startsWith(fsRoot) ? cwd.slice(fsRoot.length) : cwd;
+    const parts = rel.replace(/^\/+/, "").split("/");
+    return ["~", ...parts.filter(Boolean)];
   }
 
-  const navigateTo = React.useCallback(async (nextCwd: string) => {
-    setPreview(null);
-    setSelected(null);
-    setCwd(nextCwd);
-  }, []);
+  const navigateTo = React.useCallback(
+    async (nextCwd: string) => {
+      setPreview(null);
+      setSelected(null);
+      const target = fsRoot && !nextCwd.startsWith(fsRoot) ? fsRoot : nextCwd;
+      setCwd(target);
+    },
+    [fsRoot]
+  );
 
   const openDir = React.useCallback(
     async (name: string) => {
@@ -154,34 +380,11 @@ export function FilesApp({ className, ...props }: FilesAppProps) {
   const goUp = React.useCallback(async () => {
     if (cwd === "/") return;
     const parts = cwd.split("/").filter(Boolean);
-    const parent = parts.length <= 1 ? "/" : "/" + parts.slice(0, -1).join("/");
-    await navigateTo(parent);
-  }, [cwd, navigateTo]);
+    const parent = parts.length <= 1 ? fsRoot : cwd.slice(0, cwd.lastIndexOf("/"));
+    await navigateTo(parent || fsRoot);
+  }, [cwd, navigateTo, fsRoot]);
 
-  const openFilePreview = React.useCallback(
-    async (name: string) => {
-      setPreviewOpen(true);
-      setPreviewTitle(name);
-      setPreviewLoading(true);
-      setError(null);
-      setPreview(null);
-      try {
-        const quoted = shellQuote(name);
-        const { stdout, error: err } = await terminalCall({
-          command: `head -n 400 ${quoted}`,
-          cwd,
-        });
-        if (err) setError(err);
-        const text = (stdout ?? []).join("\n");
-        setPreview(text.length > 0 ? text : "(empty file or binary)\n");
-      } catch {
-        setError("Failed to open file");
-      } finally {
-        setPreviewLoading(false);
-      }
-    },
-    [cwd]
-  );
+  // openFilePreview defined earlier
 
   const onItemActivate = React.useCallback(
     async (entry: DirEntry) => {
@@ -194,10 +397,12 @@ export function FilesApp({ className, ...props }: FilesAppProps) {
 
   return (
     <div className={cn("h-full w-full flex flex-col", className)} {...props}>
-      <div className="flex items-center gap-0 overflow-x-auto p-2 bg-gradient-to-b from-white/40 to-transparent">
+      <div className="flex items-center gap-0 overflow-x-auto p-2 bg-gradient-to-b from-white/40 to-background">
         {cwdSegments().map((seg, idx, arr) => {
           const isRoot = idx === 0;
-          const path = isRoot ? "/" : "/" + arr.slice(1, idx + 1).join("/");
+          const path = isRoot
+            ? fsRoot || "/"
+            : (fsRoot || "") + "/" + arr.slice(1, idx + 1).join("/");
           return (
             <React.Fragment key={`${seg}-${idx}`}>
               {idx > 0 && <span className="text-muted-foreground">/</span>}
@@ -228,7 +433,7 @@ export function FilesApp({ className, ...props }: FilesAppProps) {
                 <div
                   className={cn(
                     "grid",
-                    "gap-x-4 gap-y-6",
+                    "gap-x-4 gap-y-6 overflow-y-auto",
                     "[grid-template-columns:repeat(auto-fill,minmax(120px,1fr))]"
                   )}
                   role="list"
@@ -275,7 +480,7 @@ export function FilesApp({ className, ...props }: FilesAppProps) {
         </div>
       </div>
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="sm:max-w-2xl bg-white/60 backdrop-blur-sm rounded-2xl">
+        <DialogContent className="sm:max-w-2xl bg-gradient-to-b from-white/40 to-background backdrop-blur-sm rounded-2xl">
           <DialogHeader>
             <DialogTitle
               className="truncate text-2xl font-semibold tracking-tight"
@@ -287,10 +492,27 @@ export function FilesApp({ className, ...props }: FilesAppProps) {
           <div className="mt-2">
             {previewLoading ? (
               <div className="p-6 text-sm text-muted-foreground">Loading preview…</div>
-            ) : (
+            ) : previewKind === "image" && previewSrc ? (
+              <div className="max-h-[70vh] overflow-auto">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={previewSrc} alt={previewTitle} className="max-w-full h-auto" />
+              </div>
+            ) : previewKind === "pdf" && previewSrc ? (
+              <div className="h-[70vh]">
+                <iframe src={previewSrc} className="w-full h-full rounded-md" />
+              </div>
+            ) : previewKind === "code" && typeof preview === "string" ? (
+              <CodeBlock
+                code={preview}
+                language={getExtension(previewTitle) || "txt"}
+                variant="flat"
+              />
+            ) : previewKind === "text" && typeof preview === "string" ? (
               <pre className="max-h-[60vh] overflow-auto text-base whitespace-pre-wrap font-mono">
-                {preview ?? "(no preview)"}
+                {preview}
               </pre>
+            ) : (
+              <div className="p-6 text-sm text-muted-foreground">(no preview)</div>
             )}
           </div>
         </DialogContent>

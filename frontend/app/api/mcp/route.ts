@@ -34,33 +34,82 @@ type Pending = {
   reject: (reason: Error) => void;
 };
 
+const MCP_CLIENT_VERSION = 2 as const;
+
 class MCPClient {
   private process: ChildProcessWithoutNullStreams | null = null;
   private nextId = 1;
   private initialized = false;
   private readonly pending = new Map<number, Pending>();
   private readonly stdoutRemainder: { value: string } = { value: "" };
+  private startedAtMs: number | null = null;
 
   private getBackendDir(): string {
     return path.resolve(process.cwd(), "..", "backend");
   }
 
   private ensureStarted(): Promise<void> {
+    // One-time version bump-based restart to pick up backend code changes
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const globalStore = globalThis as any;
+      const KEY = "__OASIS_MCP_CLIENT_VERSION__" as const;
+      const currentVersion = globalStore[KEY];
+      if (currentVersion !== MCP_CLIENT_VERSION && this.process) {
+        try {
+          this.process.kill();
+        } catch {}
+        this.process = null;
+        this.initialized = false;
+      }
+      globalStore[KEY] = MCP_CLIENT_VERSION;
+    } catch {}
+
+    // If an old process is running with the legacy dist entry, restart with dev mode
+    if (this.process) {
+      const spawnArgs = Array.isArray((this.process as any).spawnargs)
+        ? ((this.process as any).spawnargs as string[])
+        : [];
+      const argsJoined = spawnArgs.join(" ");
+      const isLegacyDist =
+        argsJoined.includes("dist/index.js") && !argsJoined.includes("pnpm run dev");
+      const isExited = (this.process as any).exitCode !== null || (this.process as any).killed;
+      if (isLegacyDist || isExited) {
+        try {
+          this.process.kill();
+        } catch {}
+        this.process = null;
+        this.initialized = false;
+      }
+    }
     if (this.process && this.initialized) return Promise.resolve();
 
     return new Promise((resolve, reject) => {
       try {
         const backendDir = this.getBackendDir();
-        // Prefer dist build if present; otherwise run dev (src)
-        const distEntry = path.join(backendDir, "dist", "index.js");
+        // Prefer tsx directly to ensure we run source with sandbox logic
         let proc: ChildProcessWithoutNullStreams;
-        if (fs.existsSync(distEntry)) {
-          proc = spawn("node", [distEntry], { cwd: backendDir, stdio: ["pipe", "pipe", "pipe"] });
+        const tsxBin = path.join(
+          backendDir,
+          "node_modules",
+          ".bin",
+          process.platform === "win32" ? "tsx.cmd" : "tsx"
+        );
+        if (fs.existsSync(tsxBin)) {
+          proc = spawn(tsxBin, ["src/index.ts"], {
+            cwd: backendDir,
+            stdio: ["pipe", "pipe", "pipe"],
+          });
         } else {
-          proc = spawn("pnpm", ["run", "dev"], { cwd: backendDir, stdio: ["pipe", "pipe", "pipe"] });
+          // Fallback to npm script which should also invoke tsx
+          proc = spawn("pnpm", ["run", "dev"], {
+            cwd: backendDir,
+            stdio: ["pipe", "pipe", "pipe"],
+          });
         }
 
         this.process = proc;
+        this.startedAtMs = Date.now();
 
         proc.stdout.setEncoding("utf8");
         proc.stdout.on("data", (chunk: string) => {
@@ -163,7 +212,8 @@ class MCPClient {
 // Singleton client across hot reloads
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const globalStore = globalThis as any;
-const MCP_KEY = "__OASIS_MCP_CLIENT__" as const;
+// Use a distinct key so we don't accidentally reuse a client instance created by other routes
+const MCP_KEY = "__OASIS_MCP_CLIENT_MCP__" as const;
 const mcpClient: MCPClient = globalStore[MCP_KEY] ?? new MCPClient();
 globalStore[MCP_KEY] = mcpClient;
 

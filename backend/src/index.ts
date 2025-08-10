@@ -145,7 +145,7 @@ if (
         format: {
           type: "string",
           enum: ["full", "minimal", "raw"],
-          description: "Message format",
+          description: "Message format (full, minimal, or raw)",
           default: "full",
         },
       },
@@ -376,29 +376,59 @@ if (process.env.SLACK_BOT_TOKEN) {
   });
 }
 
+// Alias for MCP clients expecting the spec-style name
+tools.push({
+  name: "terminal.execute@v1",
+  description:
+    "Execute shell commands in a sandboxed environment. Returns stdout, stderr, and exit code.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      command: {
+        type: "string",
+        description: 'Shell command to execute (e.g., "ls -la", "echo hello")',
+        minLength: 1,
+        maxLength: 500,
+      },
+      cwd: {
+        type: "string",
+        description: 'Virtual working directory (e.g., "/home/oasis", mapped into sandbox) ',
+        maxLength: 200,
+      },
+    },
+    required: ["command"],
+  },
+});
+
 // Filesystem tools (simple, consistent names)
 // Contacts tools (Google People API)
 tools.push({
   name: "list_contacts",
   description: "List contacts (Google People API)",
-  inputSchema: { type: "object", properties: { limit: { type: "number" }, pageToken: { type: "string" } } },
+  inputSchema: {
+    type: "object",
+    properties: { limit: { type: "number" }, pageToken: { type: "string" } },
+  },
 });
 tools.push({
   name: "search_contacts",
   description: "Search contacts (Google People API)",
-  inputSchema: { type: "object", properties: { query: { type: "string" }, limit: { type: "number" } }, required: ["query"] },
+  inputSchema: {
+    type: "object",
+    properties: { query: { type: "string" }, limit: { type: "number" } },
+    required: ["query"],
+  },
 });
-tools.push({ name: "fs_health", description: "Filesystem health and roots", inputSchema: { type: "object", properties: {} } });
-tools.push({ name: "fs_roots", description: "List allowed filesystem roots", inputSchema: { type: "object", properties: {} } });
+// Expose a minimal, read-only subset of filesystem tools for clients
 tools.push({
-  name: "fs_exists",
-  description: "Check if a path exists",
-  inputSchema: { type: "object", properties: { path: { type: "string" }, cwd: { type: "string" } }, required: ["path"] },
+  name: "fs_health",
+  description: "Filesystem health and roots",
+  inputSchema: { type: "object", properties: {} },
 });
 tools.push({
-  name: "fs_stat",
-  description: "Stat a path",
-  inputSchema: { type: "object", properties: { path: { type: "string" }, cwd: { type: "string" } }, required: ["path"] },
+  name: "fs_roots",
+  description: "List allowed filesystem roots",
+  inputSchema: { type: "object", properties: {} },
 });
 tools.push({
   name: "fs_dir",
@@ -416,11 +446,6 @@ tools.push({
   },
 });
 tools.push({
-  name: "fs_resolve",
-  description: "Resolve input path to absolute within roots",
-  inputSchema: { type: "object", properties: { path: { type: "string" }, cwd: { type: "string" } }, required: ["path"] },
-});
-tools.push({
   name: "fs_read",
   description: "Read file contents",
   inputSchema: {
@@ -433,56 +458,6 @@ tools.push({
     },
     required: ["path"],
   },
-});
-tools.push({
-  name: "fs_write",
-  description: "Write file contents",
-  inputSchema: {
-    type: "object",
-    properties: {
-      path: { type: "string" },
-      cwd: { type: "string" },
-      content: { type: "string" },
-      encoding: { type: "string", enum: ["utf8", "base64"] },
-      create: { type: "boolean" },
-      overwrite: { type: "boolean" },
-      mkdirp: { type: "boolean" },
-    },
-    required: ["path", "content"],
-  },
-});
-tools.push({
-  name: "fs_mkdir",
-  description: "Create directory",
-  inputSchema: {
-    type: "object",
-    properties: { path: { type: "string" }, cwd: { type: "string" }, recursive: { type: "boolean" } },
-    required: ["path"],
-  },
-});
-tools.push({
-  name: "fs_move",
-  description: "Move/rename file or directory",
-  inputSchema: {
-    type: "object",
-    properties: { from: { type: "string" }, to: { type: "string" }, overwrite: { type: "boolean" }, mkdirp: { type: "boolean" }, cwd: { type: "string" } },
-    required: ["from", "to"],
-  },
-});
-tools.push({
-  name: "fs_delete",
-  description: "Delete file or directory",
-  inputSchema: { type: "object", properties: { path: { type: "string" }, cwd: { type: "string" }, recursive: { type: "boolean" } }, required: ["path"] },
-});
-tools.push({
-  name: "fs_find",
-  description: "Find files under cwd (simple glob)",
-  inputSchema: { type: "object", properties: { cwd: { type: "string" }, glob: { type: "string" }, includeHidden: { type: "boolean" }, limit: { type: "number" } }, required: ["cwd"] },
-});
-tools.push({
-  name: "fs_complete",
-  description: "Tab-complete a path-like input",
-  inputSchema: { type: "object", properties: { cwd: { type: "string" }, input: { type: "string" } }, required: ["input"] },
 });
 
 // UI action (simulated inside Oasis)
@@ -508,7 +483,12 @@ tools.push({
     type: "object",
     properties: {
       target: { type: "string", description: "App name/desktop id/path/URL", minLength: 1 },
-      action: { type: "string", enum: ["open", "focus"], description: "Whether to open or focus", default: "open" },
+      action: {
+        type: "string",
+        enum: ["open", "focus"],
+        description: "Whether to open or focus",
+        default: "open",
+      },
       hintClass: { type: "string", description: "Optional X11/WM class hint for focusing" },
     },
     required: ["target"],
@@ -518,14 +498,31 @@ tools.push({
 // New: Do-anything tool (computer-use loop)
 tools.push({
   name: "do_anything",
-  description: "Spawn a computer-use agent: screenshot + vision model to propose and execute actions in a loop.",
+  description:
+    "Spawn a computer-use agent: screenshot + vision model to propose and execute actions in a loop.",
   inputSchema: {
     type: "object",
     properties: {
       goal: { type: "string", description: "High-level user goal", minLength: 1 },
-      maxSteps: { type: "number", description: "Maximum steps to run", minimum: 1, maximum: 50, default: 15 },
-      dryRun: { type: "boolean", description: "If true, do not actually execute actions", default: false },
-      stepDelayMs: { type: "number", description: "Delay between steps in ms", minimum: 0, maximum: 60000, default: 250 },
+      maxSteps: {
+        type: "number",
+        description: "Maximum steps to run",
+        minimum: 1,
+        maximum: 50,
+        default: 15,
+      },
+      dryRun: {
+        type: "boolean",
+        description: "If true, do not actually execute actions",
+        default: false,
+      },
+      stepDelayMs: {
+        type: "number",
+        description: "Delay between steps in ms",
+        minimum: 0,
+        maximum: 60000,
+        default: 250,
+      },
     },
     required: ["goal"],
   },
@@ -568,6 +565,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
   try {
+    // Only allow calling tools that are explicitly registered/exposed
+    const exposedToolNames = new Set(tools.map((t) => t.name));
+    if (!exposedToolNames.has(name)) {
+      throw new MCPError(`Unknown or disabled tool: ${name}`, "BAD_REQUEST");
+    }
     switch (name) {
       // Gmail endpoints
       case "list_email":
@@ -657,6 +659,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         return await wrap("slack_auth_test", async (a: unknown, c: LogContext) =>
           handleSlackAuthTest(a, c, process.env.SLACK_BOT_TOKEN as string)
         )(args);
+
+      case "terminal.execute@v1":
+        return await wrap("terminal.execute@v1", handleTerminalExecute)(args);
 
       // FS endpoints
       case "fs_health":

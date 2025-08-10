@@ -63,6 +63,8 @@ export interface WindowProps extends React.HTMLAttributes<HTMLDivElement> {
   minWidth?: number;
   minHeight?: number;
   onClose?: () => void;
+  // When this value changes, the window brings itself to front
+  focusSignal?: number;
 }
 
 export function Window({
@@ -75,6 +77,7 @@ export function Window({
   initialHeight = 220,
   minWidth = 240,
   minHeight = 120,
+  focusSignal,
   ...props
 }: WindowProps) {
   const getRect = useContainerBounds();
@@ -111,6 +114,12 @@ export function Window({
   const isInteracting = isDragging || Boolean(isResizing);
   const [zIndex, setZIndex] = React.useState<number>(() => bumpZ());
   const isFocused = zIndex === topZ;
+
+  // Bring to front when focusSignal changes
+  React.useEffect(() => {
+    if (focusSignal === undefined) return;
+    setZIndex(bumpZ());
+  }, [focusSignal, bumpZ]);
 
   React.useEffect(() => {
     if (!animateNext) return;

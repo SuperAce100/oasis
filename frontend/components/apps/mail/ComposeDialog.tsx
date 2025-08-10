@@ -17,8 +17,26 @@ import { Loader2, Paperclip, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { postJSON } from "./utils";
 
-export function ComposeDialog({ onSent }: { onSent: () => void | Promise<void> }) {
-  const [open, setOpen] = React.useState(false);
+export function ComposeDialog({
+  onSent,
+  open,
+  onOpenChange,
+  prefill,
+  prefillId,
+}: {
+  onSent: () => void | Promise<void>;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  prefill?: {
+    to?: string[];
+    cc?: string[];
+    bcc?: string[];
+    subject?: string;
+    body?: string;
+    format?: "text" | "html";
+  };
+  prefillId?: number;
+}) {
   const [to, setTo] = React.useState<string>("");
   const [cc, setCc] = React.useState<string>("");
   const [bcc, setBcc] = React.useState<string>("");
@@ -42,6 +60,30 @@ export function ComposeDialog({ onSent }: { onSent: () => void | Promise<void> }
 
   const onFilesSelected = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
+    // Initialize fields whenever a new prefill request arrives or the dialog opens freshly without prefill
+    React.useEffect(() => {
+      if (!open) return;
+      const join = (arr?: string[]) => (Array.isArray(arr) ? arr.join(", ") : "");
+      const clean = (s?: string) => (typeof s === "string" ? s : "");
+      if (prefill) {
+        setTo(join(prefill.to));
+        setCc(join(prefill.cc));
+        setBcc(join(prefill.bcc));
+        setSubject(clean(prefill.subject));
+        setBody(clean(prefill.body));
+        if (prefill.format) setFormat(prefill.format);
+      } else {
+        // Manual open: start blank
+        setTo("");
+        setCc("");
+        setBcc("");
+        setSubject("");
+        setBody("");
+        setFormat("text");
+        setAttachments([]);
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, prefillId]);
     const reads = Array.from(files).map(async (file) => {
       const buf = await file.arrayBuffer();
       const base64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
@@ -77,7 +119,7 @@ export function ComposeDialog({ onSent }: { onSent: () => void | Promise<void> }
         attachments,
       });
       toast.success("Sent");
-      setOpen(false);
+      onOpenChange(false);
       reset();
       await onSent();
     } catch (e) {
@@ -88,10 +130,11 @@ export function ComposeDialog({ onSent }: { onSent: () => void | Promise<void> }
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        <Button size="iconLg" className="gap-2">
+        <Button size="default" className="">
           <Plus className="size-4" />
+          Compose
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-2xl z-[900]">

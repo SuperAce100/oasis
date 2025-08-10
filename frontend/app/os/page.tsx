@@ -6,6 +6,14 @@ import { Dock } from "@/components/os/dock";
 import { Desktop } from "@/components/os/desktop";
 import { Window } from "@/components/os/window";
 import { TerminalApp } from "@/components/apps/terminal";
+import {
+  onOpenTerminal,
+  onOpenMail,
+  onOpenFiles,
+  type OpenTerminalEvent,
+  type OpenMailEvent,
+  type OpenFilesEvent,
+} from "@/lib/os-events";
 import { CalendarApp } from "@/components/apps/calendar";
 import { MailApp } from "@/components/apps/mail";
 import { FilesApp } from "@/components/apps/files";
@@ -21,12 +29,27 @@ export default function OS() {
   const [isMailOpen, setIsMailOpen] = React.useState(false);
   const [isFilesOpen, setIsFilesOpen] = React.useState(false);
   const [isSlackOpen, setIsSlackOpen] = React.useState(false);
+  const [filesDeeplink, setFilesDeeplink] = React.useState<OpenFilesEvent | null>(null);
   const [isWelcomeOpen, setIsWelcomeOpen] = React.useState(true);
   // Agent overlay state
   const [isAgentVisible, setIsAgentVisible] = React.useState(false);
   const [agentPhase, setAgentPhase] = React.useState<"prompt" | "running">("prompt");
   const [agentInput, setAgentInput] = React.useState("");
   const [agentQuery, setAgentQuery] = React.useState("");
+  // Deeplink payloads
+  const [terminalDeeplink, setTerminalDeeplink] = React.useState<OpenTerminalEvent | null>(null);
+  const [mailDeeplink, setMailDeeplink] = React.useState<OpenMailEvent | null>(null);
+  const [terminalFocusBump, setTerminalFocusBump] = React.useState(0);
+  const [mailFocusBump, setMailFocusBump] = React.useState(0);
+
+  // Debug state changes
+  React.useEffect(() => {
+    console.log("[OS] isTerminalOpen changed:", isTerminalOpen);
+  }, [isTerminalOpen]);
+
+  React.useEffect(() => {
+    console.log("[OS] terminalDeeplink changed:", terminalDeeplink);
+  }, [terminalDeeplink]);
 
   // Global Cmd+K handler
   React.useEffect(() => {
@@ -47,28 +70,61 @@ export default function OS() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
-
   // Listen for UI intents from agent
   React.useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail as { action: string; appId: string; params?: any };
-      const { action, appId, params } = detail || {};
+      const { action, appId } = detail || {};
       const openApp = (id: string) => {
-        if (id === 'terminal') setIsTerminalOpen(true);
-        if (id === 'files') setIsFilesOpen(true);
-        if (id === 'mail') setIsMailOpen(true);
-        if (id === 'calendar') setIsCalendarOpen(true);
+        if (id === "terminal") setIsTerminalOpen(true);
+        if (id === "files") setIsFilesOpen(true);
+        if (id === "mail") setIsMailOpen(true);
+        if (id === "calendar") setIsCalendarOpen(true);
       };
       if (!action || !appId) return;
-      if (action === 'open' || action === 'focus') {
+      if (action === "open" || action === "focus") {
         openApp(appId);
       }
-      // typing integration can be added inside each app component as needed
     };
-    if (typeof window !== 'undefined') {
-      window.addEventListener('oasis-ui-intent', handler as EventListener);
-      return () => window.removeEventListener('oasis-ui-intent', handler as EventListener);
+    if (typeof window !== "undefined") {
+      window.addEventListener("oasis-ui-intent", handler as EventListener);
+      return () => window.removeEventListener("oasis-ui-intent", handler as EventListener);
     }
+  }, []);
+
+  // Listen for deeplink events; always open and bring to front
+  React.useEffect(() => {
+    console.log("[OS] Setting up deeplink event listeners");
+    const offTerm = onOpenTerminal((detail) => {
+      try {
+        // eslint-disable-next-line no-console
+        console.debug("[oasis] onOpenTerminal received:", detail);
+      } catch {}
+      console.log("[OS] Setting terminal deeplink and opening terminal");
+      console.log("[OS] Current isTerminalOpen:", isTerminalOpen);
+      setTerminalDeeplink(detail);
+      setIsTerminalOpen(true);
+      setTerminalFocusBump((n) => n + 1);
+      console.log("[OS] Terminal should now be open");
+    });
+    const offMail = onOpenMail((detail) => {
+      try {
+        // eslint-disable-next-line no-console
+        console.debug("[oasis] onOpenMail", detail);
+      } catch {}
+      setMailDeeplink(detail);
+      setIsMailOpen(true);
+      setMailFocusBump((n) => n + 1);
+    });
+    const offFiles = onOpenFiles((detail) => {
+      setFilesDeeplink(detail);
+      setIsFilesOpen(true);
+    });
+    return () => {
+      offTerm?.();
+      offMail?.();
+      offFiles?.();
+    };
   }, []);
 
   return (
@@ -92,7 +148,7 @@ export default function OS() {
                 Oasis
               </h1>
               <p className="text-2xl text-balance text-muted-foreground">
-                The AI native operating system.
+                The AI operating system.
               </p>
               <Button
                 variant="fancy"
@@ -109,18 +165,26 @@ export default function OS() {
           </Window>
         )}
 
-        {isTerminalOpen && (
-          <Window
-            title="Terminal"
-            initialX={80}
-            initialY={96}
-            initialWidth={560}
-            initialHeight={360}
-            onClose={() => setIsTerminalOpen(false)}
-          >
-            <TerminalApp className="h-full" />
-          </Window>
-        )}
+        {isTerminalOpen &&
+          (() => {
+            console.log("[OS] Rendering terminal window with deeplink:", terminalDeeplink);
+            return (
+              <Window
+                title="Terminal"
+                initialX={80}
+                initialY={96}
+                initialWidth={560}
+                initialHeight={360}
+                focusSignal={terminalFocusBump}
+                onClose={() => {
+                  setIsTerminalOpen(false);
+                  setTerminalDeeplink(null);
+                }}
+              >
+                <TerminalApp className="h-full" deeplink={terminalDeeplink ?? undefined} />
+              </Window>
+            );
+          })()}
 
         {isFilesOpen && (
           <Window
@@ -131,9 +195,15 @@ export default function OS() {
             initialHeight={520}
             minWidth={640}
             minHeight={420}
-            onClose={() => setIsFilesOpen(false)}
+            onClose={() => {
+              setIsFilesOpen(false);
+              setFilesDeeplink(null);
+            }}
           >
-            <FilesApp className="h-full" />
+            <FilesApp
+              className="h-full"
+              data-deeplink={filesDeeplink ? JSON.stringify(filesDeeplink) : undefined}
+            />
           </Window>
         )}
 
@@ -161,9 +231,16 @@ export default function OS() {
             initialHeight={720}
             minWidth={800}
             minHeight={600}
-            onClose={() => setIsMailOpen(false)}
+            focusSignal={mailFocusBump}
+            onClose={() => {
+              setIsMailOpen(false);
+              setMailDeeplink(null);
+            }}
           >
-            <MailApp className="h-full" />
+            <MailApp
+              className="h-full"
+              data-deeplink={mailDeeplink ? JSON.stringify(mailDeeplink) : undefined}
+            />
           </Window>
         )}
 
@@ -194,7 +271,10 @@ export default function OS() {
             id: "terminal",
             label: "Terminal",
             iconSrc: "/apps/Terminal.png",
-            onClick: () => setIsTerminalOpen(true),
+            onClick: () => {
+              console.log("[OS] Terminal clicked from dock");
+              setIsTerminalOpen(true);
+            },
           },
           {
             id: "calendar",
