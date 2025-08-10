@@ -77,11 +77,11 @@ function TerminalTool({ input, state }: { input?: GenericRecord; state?: unknown
 
 function CalendarTool({
   toolName,
-  args,
+  input,
   state,
 }: {
   toolName: string;
-  args?: GenericRecord;
+  input?: GenericRecord;
   state?: unknown;
 }) {
   return (
@@ -89,7 +89,7 @@ function CalendarTool({
       <Calendar className="size-4" />
       <span className="font-medium">Calendar</span>
       <span className="text-stone-700">{humanize(toolName)}</span>
-      {renderArgs(args)}
+      {renderArgs(input)}
       {typeof state === "string" ? <span className="ml-1 text-stone-500">({state})</span> : null}
     </div>
   );
@@ -101,7 +101,7 @@ function MailTool({
   state,
 }: {
   toolName: string;
-  args?: GenericRecord;
+  input?: GenericRecord;
   state?: unknown;
 }) {
   return (
@@ -109,7 +109,7 @@ function MailTool({
       <Mail className="size-4" />
       <span className="font-medium">Mail</span>
       <span className="text-stone-700">{humanize(toolName)}</span>
-      {renderArgs(args)}
+      {renderArgs(input)}
       {typeof state === "string" ? <span className="ml-1 text-stone-500">({state})</span> : null}
     </div>
   );
@@ -126,7 +126,7 @@ function GitHubTool({ input, state }: { input?: GenericRecord; state?: unknown }
   );
 }
 
-function NotionTool({ args, state }: { args?: GenericRecord; state?: unknown }) {
+function NotionTool({ input, state }: { input?: GenericRecord; state?: unknown }) {
   return (
     <div className="inline-flex items-center gap-2 rounded-md border bg-white/60 px-2 py-1 text-xs">
       <Book className="size-4" />

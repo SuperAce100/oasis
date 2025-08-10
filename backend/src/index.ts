@@ -52,7 +52,9 @@ const tools: Tool[] = [];
 // Conditionally register Gmail tools
 if (
   process.env.GOOGLE_APPLICATION_CREDENTIALS ||
-  fs.existsSync(path.join(process.cwd(), "credentials.json"))
+  fs.existsSync(path.resolve(process.cwd(), "credentials.json")) ||
+  fs.existsSync(path.resolve(process.cwd(), "../credentials.json")) ||
+  fs.existsSync(path.resolve(process.cwd(), "../backend/credentials.json"))
 ) {
   // Email tools
   tools.push({
@@ -166,7 +168,7 @@ if (GITHUB_TOKEN) {
   tools.push({
     name: "create_github_issue",
     description: "Create a new issue in a GitHub repository",
-    
+
     inputSchema: {
       type: "object",
       properties: {
@@ -231,41 +233,41 @@ if (NOTION_TOKEN) {
 }
 
 // Always register status tools
-tools.push({
-  name: "get_job_status",
-  description: "Get the status of a job by ID",
-  inputSchema: {
-    type: "object",
-    properties: {
-      jobId: {
-        type: "string",
-        description: "Unique job identifier",
-      },
-    },
-    required: ["jobId"],
-  },
-});
+// tools.push({
+//   name: "get_job_status",
+//   description: "Get the status of a job by ID",
+//   inputSchema: {
+//     type: "object",
+//     properties: {
+//       jobId: {
+//         type: "string",
+//         description: "Unique job identifier",
+//       },
+//     },
+//     required: ["jobId"],
+//   },
+// });
 
-tools.push({
-  name: "list_jobs",
-  description: "List jobs with optional filtering",
-  inputSchema: {
-    type: "object",
-    properties: {
-      status: {
-        type: "string",
-        enum: ["pending", "running", "completed", "failed"],
-        description: "Filter by job status (optional)",
-      },
-      limit: {
-        type: "number",
-        minimum: 1,
-        maximum: 100,
-        description: "Maximum number of jobs to return (optional, default: 20)",
-      },
-    },
-  },
-});
+// tools.push({
+//   name: "list_jobs",
+//   description: "List jobs with optional filtering",
+//   inputSchema: {
+//     type: "object",
+//     properties: {
+//       status: {
+//         type: "string",
+//         enum: ["pending", "running", "completed", "failed"],
+//         description: "Filter by job status (optional)",
+//       },
+//       limit: {
+//         type: "number",
+//         minimum: 1,
+//         maximum: 100,
+//         description: "Maximum number of jobs to return (optional, default: 20)",
+//       },
+//     },
+//   },
+// });
 
 // Terminal execution tool
 tools.push({
