@@ -10,7 +10,10 @@ import { AttachmentPill } from "./AttachmentPill";
 import { useEmailList, useEmailRead } from "./hooks";
 import type { OrderBy } from "./types";
 
-export type MailAppProps = React.HTMLAttributes<HTMLDivElement>;
+export type MailAppProps = React.HTMLAttributes<HTMLDivElement> & {
+  // Accept a JSON string via data-deeplink attribute to avoid prop drilling through Window
+  "data-deeplink"?: string;
+};
 
 // local UI-only components moved to separate files under this folder
 
@@ -27,6 +30,19 @@ export function MailApp({ className, ...props }: MailAppProps) {
     query,
   });
   const { message, isLoading: isReading } = useEmailRead(selectedId);
+
+  // Apply deeplink selection on mount
+  React.useEffect(() => {
+    try {
+      const raw = (props as any)["data-deeplink"] as string | undefined;
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { messageId?: string };
+      if (parsed?.messageId) setSelectedId(parsed.messageId);
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   React.useEffect(() => {
     if (emails.length > 0 && !selectedId) setSelectedId(emails[0].id);

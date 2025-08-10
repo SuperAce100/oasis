@@ -3,7 +3,10 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-export type TerminalAppProps = React.HTMLAttributes<HTMLDivElement>;
+export type TerminalAppProps = React.HTMLAttributes<HTMLDivElement> & {
+  // Accept a JSON string via data-deeplink attribute to avoid prop drilling through Window
+  "data-deeplink"?: string;
+};
 
 type OutputEntry =
   | { type: "cmd"; prompt: string; text: string }
@@ -30,6 +33,24 @@ export function TerminalApp({ className, ...props }: TerminalAppProps) {
     // Auto-focus input on mount
     inputRef.current?.focus();
   }, []);
+
+  // Execute deeplink command on mount and when it changes
+  const deeplinkRaw = (props as any)["data-deeplink"] as string | undefined;
+  const lastDeeplinkRawRef = React.useRef<string | undefined>(undefined);
+  React.useEffect(() => {
+    if (!deeplinkRaw || deeplinkRaw === lastDeeplinkRawRef.current) return;
+    lastDeeplinkRawRef.current = deeplinkRaw;
+    try {
+      const parsed = JSON.parse(deeplinkRaw) as { command?: string; cwd?: string };
+      if (parsed?.cwd) setCwd(parsed.cwd);
+      if (parsed?.command && parsed.command.trim().length > 0) {
+        void runCommand(parsed.command, { cwd: parsed.cwd });
+      }
+    } catch {
+      // ignore malformed deeplink
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deeplinkRaw]);
 
   React.useEffect(() => {
     // Keep scrolled to bottom when output changes
@@ -86,7 +107,7 @@ export function TerminalApp({ className, ...props }: TerminalAppProps) {
 
   // (No local filesystem logic; all command execution handled by API)
 
-  async function runCommand(rawInput: string) {
+  async function runCommand(rawInput: string, options?: { cwd?: string }) {
     const input = rawInput.trim();
     if (input.length === 0) return;
     // Print prompt (path only) + command, with colored prompt in history
@@ -105,7 +126,7 @@ export function TerminalApp({ className, ...props }: TerminalAppProps) {
       const res = await fetch("/api/terminal", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ command: input, cwd }),
+        body: JSON.stringify({ command: input, cwd: options?.cwd ?? cwd }),
       });
       if (!res.ok) throw new Error("Request failed");
       const data = (await res.json()) as { stdout?: string[]; cwd?: string; error?: string };

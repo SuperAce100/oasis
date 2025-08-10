@@ -9,6 +9,7 @@ import {
   AccordionContent,
 } from "@/components/ui/accordion";
 import { CodeBlock } from "@/components/ui/code-block";
+import { openMail, openTerminal } from "@/lib/os-events";
 
 type GenericRecord = Record<string, unknown>;
 
@@ -54,7 +55,15 @@ export function RenderTool({ toolName, input, state }: RenderToolProps) {
 }
 
 function TerminalTool({ input, state }: { input?: GenericRecord; state?: unknown }) {
-  const command = typeof input?.command === "string" ? input?.command : undefined;
+  const command = typeof input?.command === "string" ? (input?.command as string) : undefined;
+  const cwd = typeof input?.cwd === "string" ? (input?.cwd as string) : undefined;
+  const openedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!openedRef.current && state === "streaming" && command) {
+      openedRef.current = true;
+      openTerminal({ command, cwd });
+    }
+  }, [state, command]);
   return (
     <div className="space-y-2">
       <div className="flex flex-row gap-2 items-center">
@@ -62,6 +71,15 @@ function TerminalTool({ input, state }: { input?: GenericRecord; state?: unknown
         <span className="font-medium text-md">
           {state === "streaming" ? "Running command" : "Ran command"}
         </span>
+        {command ? (
+          <button
+            type="button"
+            onClick={() => openTerminal({ command, cwd })}
+            className="ml-auto text-xs underline text-blue-700"
+          >
+            Open in Terminal
+          </button>
+        ) : null}
       </div>
       {command ? (
         <CodeBlock
@@ -104,6 +122,14 @@ function MailTool({
   input?: GenericRecord;
   state?: unknown;
 }) {
+  const messageId = typeof input?.messageId === "string" ? (input?.messageId as string) : undefined;
+  const openedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!openedRef.current && toolName === "read_email" && state === "done" && messageId) {
+      openedRef.current = true;
+      openMail({ messageId });
+    }
+  }, [toolName, state, messageId]);
   return (
     <Accordion type="single" collapsible className="w-full">
       <AccordionItem value="mail-tool">
@@ -111,6 +137,18 @@ function MailTool({
           <div className="flex items-center gap-2">
             <Mail className="size-4" />
             <span className="">{humanize(toolName)}</span>
+            {messageId ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openMail({ messageId });
+                }}
+                className="ml-2 text-xs underline text-blue-700"
+              >
+                Open in Mail
+              </button>
+            ) : null}
           </div>
         </AccordionTrigger>
         <AccordionContent className="pl-6 pt-1">{renderArgs(input)}</AccordionContent>
