@@ -9,6 +9,7 @@ import { TerminalApp } from "@/components/apps/terminal";
 import { CalendarApp } from "@/components/apps/calendar";
 import { MailApp } from "@/components/apps/mail";
 import { FilesApp } from "@/components/apps/files";
+import { AgentApp } from "@/components/apps/agent";
 import Logo from "@/components/logo";
 
 export default function OS() {
@@ -16,6 +17,31 @@ export default function OS() {
   const [isCalendarOpen, setIsCalendarOpen] = React.useState(false);
   const [isMailOpen, setIsMailOpen] = React.useState(false);
   const [isFilesOpen, setIsFilesOpen] = React.useState(false);
+  // Agent overlay state
+  const [isAgentVisible, setIsAgentVisible] = React.useState(false);
+  const [agentPhase, setAgentPhase] = React.useState<"prompt" | "running">("prompt");
+  const [agentInput, setAgentInput] = React.useState("");
+  const [agentQuery, setAgentQuery] = React.useState("");
+
+  // Global Cmd+K handler
+  React.useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const isTyping =
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target instanceof HTMLElement && e.target.isContentEditable);
+      if (isTyping) return;
+
+      if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
+        e.preventDefault();
+        setAgentInput("");
+        setAgentPhase("prompt");
+        setIsAgentVisible(true);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   return (
     <main className="relative min-h-screen bg-background">
@@ -118,6 +144,77 @@ export default function OS() {
           { id: "spotify", label: "Spotify", iconSrc: "/apps/Spotify.png" },
         ]}
       />
+
+      {/* Agent prompt + panel overlay */}
+      {isAgentVisible && (
+        <div className="pointer-events-none fixed inset-0 z-[900]">
+          {/* Scrim only during prompt phase to block background */}
+          {agentPhase === "prompt" && (
+            <div
+              className="pointer-events-auto absolute inset-0 bg-black/30 backdrop-blur-sm"
+              onClick={() => {
+                setIsAgentVisible(false);
+              }}
+            />
+          )}
+
+          {/* Shell that transitions from center to right dock */}
+          <div
+            className={
+              "pointer-events-auto absolute transition-all duration-300 ease-out " +
+              (agentPhase === "prompt"
+                ? "left-1/2 top-1/2 h-auto w-[640px] -translate-x-1/2 -translate-y-1/2"
+                : "right-4 top-16 bottom-16 w-[380px]")
+            }
+          >
+            {agentPhase === "prompt" ? (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const q = agentInput.trim();
+                  if (!q) return;
+                  setAgentQuery(q);
+                  setAgentPhase("running");
+                }}
+                className="flex w-full flex-col gap-3 rounded-xl border border-white/40 bg-white/90 p-4 shadow-xl backdrop-blur-lg"
+              >
+                <div className="text-base font-medium text-stone-800">Ask Oasis Agent</div>
+                <input
+                  autoFocus
+                  value={agentInput}
+                  onChange={(e) => setAgentInput(e.target.value)}
+                  placeholder="What would you like to do?"
+                  className="w-full rounded-md border border-stone-300 bg-white/80 px-3 py-2 text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <div className="flex items-center justify-between">
+                  <div className="text-xs text-stone-500">Press Enter to run • Esc to close</div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsAgentVisible(false)}
+                      className="rounded-md px-3 py-1 text-sm text-stone-600 hover:bg-stone-100"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="rounded-md bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700"
+                    >
+                      Run
+                    </button>
+                  </div>
+                </div>
+              </form>
+            ) : (
+              <AgentApp
+                query={agentQuery}
+                className="h-full"
+                onClose={() => setIsAgentVisible(false)}
+              />
+            )}
+          </div>
+        </div>
+      )}
     </main>
   );
 }
