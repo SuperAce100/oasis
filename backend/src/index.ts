@@ -523,6 +523,16 @@ tools.push({
         maximum: 60000,
         default: 250,
       },
+      screenshot: {
+        type: "string",
+        description:
+          "Optional base64-encoded PNG (or data URL) captured client-side; enables frontend-driven mode",
+      },
+      allowExecution: {
+        type: "boolean",
+        description:
+          "When providing a screenshot, if true and on Linux, attempt native execution; otherwise emit UI intents",
+      },
     },
     required: ["goal"],
   },
