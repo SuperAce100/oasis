@@ -9,6 +9,7 @@ import {
   AccordionContent,
 } from "@/components/ui/accordion";
 import { CodeBlock } from "@/components/ui/code-block";
+import { openMail, openTerminal } from "@/lib/os-events";
 
 type GenericRecord = Record<string, unknown>;
 
@@ -54,7 +55,16 @@ export function RenderTool({ toolName, input, state }: RenderToolProps) {
 }
 
 function TerminalTool({ input, state }: { input?: GenericRecord; state?: unknown }) {
-  const command = typeof input?.command === "string" ? input?.command : undefined;
+  const command = typeof input?.command === "string" ? (input?.command as string) : undefined;
+  const cwd = typeof input?.cwd === "string" ? (input?.cwd as string) : undefined;
+  const openedRef = React.useRef(false);
+  React.useEffect(() => {
+    // Auto-open and execute when the tool starts streaming
+    if (!openedRef.current && state === "streaming" && command) {
+      openedRef.current = true;
+      openTerminal({ command, cwd });
+    }
+  }, [state, command]);
   return (
     <div className="space-y-2">
       <div className="flex flex-row gap-2 items-center">
@@ -62,6 +72,15 @@ function TerminalTool({ input, state }: { input?: GenericRecord; state?: unknown
         <span className="font-medium text-md">
           {state === "streaming" ? "Running command" : "Ran command"}
         </span>
+        {command ? (
+          <button
+            type="button"
+            onClick={() => openTerminal({ command, cwd })}
+            className="ml-auto text-xs underline text-blue-700"
+          >
+            Open in Terminal
+          </button>
+        ) : null}
       </div>
       {command ? (
         <CodeBlock
@@ -104,6 +123,77 @@ function MailTool({
   input?: GenericRecord;
   state?: unknown;
 }) {
+  const messageId = typeof input?.messageId === "string" ? (input?.messageId as string) : undefined;
+  // Be lenient about where the model places the search text
+  const query =
+    (typeof input?.query === "string" && (input?.query as string)) ||
+    (typeof (input as any)?.q === "string" && ((input as any).q as string)) ||
+    (typeof (input as any)?.text === "string" && ((input as any).text as string)) ||
+    (typeof (input as any)?.subjectContains === "string" &&
+      ((input as any).subjectContains as string)) ||
+    undefined;
+  const openedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (openedRef.current) return;
+    // Auto-open for all mail tools as soon as inputs are available:
+    // - read_email: open specific message
+    // - search_email: open Mail with search query
+    // - list_email: open Mail with optional folder/unread/order
+    // - send_email: open Mail (no deeplink specifics yet)
+    if (toolName === "read_email" && messageId) {
+      openedRef.current = true;
+      openMail({ action: "read", messageId });
+    } else if (toolName === "search_email" && typeof query === "string") {
+      openedRef.current = true;
+      openMail({ action: "search", query });
+    } else if (toolName === "list_email") {
+      openedRef.current = true;
+      const folderId =
+        typeof input?.folderId === "string" ? (input?.folderId as string) : undefined;
+      const unreadOnly =
+        typeof input?.unreadOnly === "boolean" ? (input?.unreadOnly as boolean) : undefined;
+      const orderBy =
+        typeof input?.orderBy === "string"
+          ? (input?.orderBy as "receivedDateTime" | "subject")
+          : undefined;
+      openMail({ action: "list", folderId, unreadOnly, orderBy, query });
+    } else if (toolName === "send_email") {
+      try {
+        // eslint-disable-next-line no-console
+        console.debug("[oasis] triggering compose deeplink", input);
+      } catch {}
+      openedRef.current = true;
+      const splitList = (v: unknown): string[] | undefined => {
+        if (Array.isArray(v)) {
+          const arr = (v as unknown[])
+            .filter((s) => typeof s === "string")
+            .map((s) => (s as string).trim())
+            .filter(Boolean);
+          return arr.length > 0 ? arr : undefined;
+        }
+        if (typeof v === "string") {
+          const arr = v
+            .split(",")
+            .map((s) => s.trim())
+            .filter((s) => s.length > 0);
+          return arr.length > 0 ? arr : undefined;
+        }
+        return undefined;
+      };
+      const to = splitList((input as any)?.to);
+      const cc = splitList((input as any)?.cc);
+      const bcc = splitList((input as any)?.bcc);
+      const subject =
+        typeof (input as any)?.subject === "string"
+          ? ((input as any).subject as string)
+          : undefined;
+      const body =
+        typeof (input as any)?.body === "string" ? ((input as any).body as string) : undefined;
+      const fmt = (input as any)?.format;
+      const format = fmt === "html" || fmt === "text" ? (fmt as "html" | "text") : undefined;
+      openMail({ action: "compose", to, cc, bcc, subject, body, format });
+    }
+  }, [toolName, messageId, query, input]);
   return (
     <Accordion type="single" collapsible className="w-full">
       <AccordionItem value="mail-tool">
@@ -111,6 +201,18 @@ function MailTool({
           <div className="flex items-center gap-2">
             <Mail className="size-4" />
             <span className="">{humanize(toolName)}</span>
+            {messageId ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openMail({ action: "read", messageId });
+                }}
+                className="ml-2 text-xs underline text-blue-700"
+              >
+                Open in Mail
+              </button>
+            ) : null}
           </div>
         </AccordionTrigger>
         <AccordionContent className="pl-6 pt-1">{renderArgs(input)}</AccordionContent>

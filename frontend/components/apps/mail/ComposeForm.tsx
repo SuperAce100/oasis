@@ -4,27 +4,18 @@ import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Paperclip, Plus } from "lucide-react";
+import { Loader2, Paperclip, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { postJSON } from "./utils";
 
-export function ComposeDialog({
-  onSent,
+export function ComposeForm({
   open,
   onOpenChange,
   prefill,
   prefillId,
+  onSent,
 }: {
-  onSent: () => void | Promise<void>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   prefill?: {
@@ -36,6 +27,7 @@ export function ComposeDialog({
     format?: "text" | "html";
   };
   prefillId?: number;
+  onSent: () => void | Promise<void>;
 }) {
   const [to, setTo] = React.useState<string>("");
   const [cc, setCc] = React.useState<string>("");
@@ -58,32 +50,35 @@ export function ComposeDialog({
     setAttachments([]);
   };
 
+  // Initialize fields whenever a new prefill request arrives or the panel opens freshly without prefill
+  React.useEffect(() => {
+    if (!open) return;
+    const join = (arr?: string[]) => (Array.isArray(arr) ? arr.join(", ") : "");
+    const clean = (s?: string) => (typeof s === "string" ? s : "");
+    if (prefill) {
+      try {
+        // eslint-disable-next-line no-console
+        console.debug("[oasis] ComposeForm apply prefill", { prefill, prefillId });
+      } catch {}
+      setTo(join(prefill.to));
+      setCc(join(prefill.cc));
+      setBcc(join(prefill.bcc));
+      setSubject(clean(prefill.subject));
+      setBody(clean(prefill.body));
+      if (prefill.format) setFormat(prefill.format);
+    } else {
+      try {
+        // eslint-disable-next-line no-console
+        console.debug("[oasis] ComposeForm blank init", { prefillId });
+      } catch {}
+      // Manual open: start blank
+      reset();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, prefillId]);
+
   const onFilesSelected = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    // Initialize fields whenever a new prefill request arrives or the dialog opens freshly without prefill
-    React.useEffect(() => {
-      if (!open) return;
-      const join = (arr?: string[]) => (Array.isArray(arr) ? arr.join(", ") : "");
-      const clean = (s?: string) => (typeof s === "string" ? s : "");
-      if (prefill) {
-        setTo(join(prefill.to));
-        setCc(join(prefill.cc));
-        setBcc(join(prefill.bcc));
-        setSubject(clean(prefill.subject));
-        setBody(clean(prefill.body));
-        if (prefill.format) setFormat(prefill.format);
-      } else {
-        // Manual open: start blank
-        setTo("");
-        setCc("");
-        setBcc("");
-        setSubject("");
-        setBody("");
-        setFormat("text");
-        setAttachments([]);
-      }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [open, prefillId]);
     const reads = Array.from(files).map(async (file) => {
       const buf = await file.arrayBuffer();
       const base64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
@@ -130,18 +125,19 @@ export function ComposeDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <Button size="default" className="">
-          <Plus className="size-4" />
-          Compose
+    <div className="">
+      {!open ? (
+        <Button size="default" className="w-full" onClick={() => onOpenChange(true)}>
+          <Plus className="size-4 mr-2" /> Compose
         </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-2xl z-[900]">
-        <DialogHeader>
-          <DialogTitle>New message</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-2">
+      ) : (
+        <div className="rounded-xl border bg-card p-3 space-y-2 absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 shadow-lg min-w-2xl">
+          <div className="flex items-center justify-between">
+            <div className="font-medium">New message</div>
+            <Button variant="ghost" size="iconSm" onClick={() => onOpenChange(false)}>
+              <X className="size-4" />
+            </Button>
+          </div>
           <Input
             placeholder="To (comma separated)"
             value={to}
@@ -204,14 +200,14 @@ export function ComposeDialog({
                 </Badge>
               ))}
             </div>
+            <div className="ml-auto">
+              <Button onClick={doSend} disabled={isSending}>
+                {isSending && <Loader2 className="mr-2 size-4 animate-spin" />} Send
+              </Button>
+            </div>
           </div>
         </div>
-        <DialogFooter>
-          <Button onClick={doSend} disabled={isSending}>
-            {isSending && <Loader2 className="mr-2 size-4 animate-spin" />} Send
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      )}
+    </div>
   );
 }

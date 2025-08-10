@@ -119,7 +119,7 @@ if (
         format: {
           type: "string",
           enum: ["full", "minimal", "raw"],
-          description: "Message format",
+          description: "Message format (full, minimal, or raw)",
           default: "full",
         },
       },
