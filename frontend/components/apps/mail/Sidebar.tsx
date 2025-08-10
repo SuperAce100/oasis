@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
+import { useGmailStatus } from "./hooks";
 
 export function Sidebar(props: {
   query: string;
@@ -51,8 +52,24 @@ export function Sidebar(props: {
     onRefreshAfterSend,
   } = props;
 
+  const { isGmailConnected } = useGmailStatus();
+
   return (
     <aside className="col-span-4 overflow-hidden flex flex-col">
+      {/* Gmail Status Indicator */}
+      <div className="p-3 border-b bg-background/50">
+        <div className="flex items-center gap-2 text-sm">
+          <div className={`w-2 h-2 rounded-full ${isGmailConnected ? 'bg-green-500' : 'bg-yellow-500'}`} />
+          <span className={isGmailConnected ? 'text-green-700' : 'text-yellow-700'}>
+            {isGmailConnected ? 'Gmail Connected' : 'Gmail Not Configured'}
+          </span>
+        </div>
+        {!isGmailConnected && (
+          <p className="text-xs text-muted-foreground mt-1">
+            Set up Gmail credentials in the backend to use real email
+          </p>
+        )}
+      </div>
       <div className="px-2 py-2 flex items-center gap-2">
         <div className="relative w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />

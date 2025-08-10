@@ -18,19 +18,19 @@ export function useEmailList(params: {
     setError(null);
     try {
       if (query.trim().length > 0) {
-        const data = await postJSON<EmailSummary[]>("/api/mail/search", {
+        const data = await postJSON<{ messages: EmailSummary[] }>("/api/mail/search", {
           query,
           limit: 100,
         });
-        setEmails(data);
+        setEmails(data.messages || []);
       } else {
-        const data = await postJSON<EmailSummary[]>("/api/mail/list", {
+        const data = await postJSON<{ messages: EmailSummary[] }>("/api/mail/list", {
           folderId,
           unreadOnly,
           orderBy,
           limit: 100,
         });
-        setEmails(data);
+        setEmails(data.messages || []);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -61,8 +61,8 @@ export function useEmailRead(messageId: string | null) {
       setIsLoading(true);
       setError(null);
       try {
-        const data = await postJSON<EmailMessage>("/api/mail/read", { messageId });
-        if (!cancelled) setMessage(data);
+        const data = await postJSON<{ message: EmailMessage }>("/api/mail/read", { messageId });
+        if (!cancelled) setMessage(data.message);
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -75,4 +75,44 @@ export function useEmailRead(messageId: string | null) {
   }, [messageId]);
 
   return { message, isLoading, error };
+}
+
+export function useGmailStatus() {
+  const [isGmailConnected, setIsGmailConnected] = React.useState<boolean>(false);
+  const [isChecking, setIsChecking] = React.useState<boolean>(true);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        // Test Gmail connection by trying to list emails
+        const result = await postJSON<{ error?: string }>("/api/mcp", {
+          action: "call",
+          name: "list_email",
+          arguments: { limit: 1 },
+        });
+
+        if (!cancelled) {
+          // If we get a response without credentials error, Gmail is connected
+          setIsGmailConnected(
+            !result.error || !result.error.includes("credentials not configured")
+          );
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setIsGmailConnected(false);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsChecking(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return { isGmailConnected, isChecking };
 }
