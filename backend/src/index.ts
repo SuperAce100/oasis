@@ -46,6 +46,7 @@ import {
   handleSlackListConversations,
   handleSlackGetHistory,
   handleSlackOpenConversation,
+  handleSlackAuthTest,
 } from "./handlers/slack.js";
 import { logStart, logSuccess, logError, LogContext } from "./utils/logger.js";
 import { MCPError } from "./utils/errors.js";
@@ -368,6 +369,11 @@ if (process.env.SLACK_BOT_TOKEN) {
       required: ["users"],
     },
   });
+  tools.push({
+    name: "slack_auth_test",
+    description: "Slack auth.test (team/app identity)",
+    inputSchema: { type: "object", properties: {} },
+  });
 }
 
 // Filesystem tools (simple, consistent names)
@@ -645,6 +651,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (!process.env.SLACK_BOT_TOKEN) throw new MCPError("Slack token not configured", "UNAUTHORIZED");
         return await wrap("slack_open_conversation", async (a: unknown, c: LogContext) =>
           handleSlackOpenConversation(a, c, process.env.SLACK_BOT_TOKEN as string)
+        )(args);
+      case "slack_auth_test":
+        if (!process.env.SLACK_BOT_TOKEN) throw new MCPError("Slack token not configured", "UNAUTHORIZED");
+        return await wrap("slack_auth_test", async (a: unknown, c: LogContext) =>
+          handleSlackAuthTest(a, c, process.env.SLACK_BOT_TOKEN as string)
         )(args);
 
       // FS endpoints

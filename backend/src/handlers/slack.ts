@@ -199,3 +199,22 @@ export async function handleSlackOpenConversation(
   return { channel: data.channel };
 }
 
+// Lightweight: auth.test (fetch team/app identity)
+export async function handleSlackAuthTest(
+  _args: unknown,
+  _context: LogContext,
+  tokenParam?: string
+) {
+  const token = resolveToken(tokenParam);
+  const data = await slackPost(token, "auth.test", {});
+  return {
+    ok: data.ok,
+    url: data.url,
+    team: data.team,
+    team_id: data.team_id,
+    user: data.user,
+    user_id: data.user_id,
+    bot_id: data.bot_id,
+  };
+}
+

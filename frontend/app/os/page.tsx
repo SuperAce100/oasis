@@ -9,6 +9,7 @@ import { TerminalApp } from "@/components/apps/terminal";
 import { CalendarApp } from "@/components/apps/calendar";
 import { MailApp } from "@/components/apps/mail";
 import { FilesApp } from "@/components/apps/files";
+import { SlackApp } from "@/components/apps/slack";
 import { AgentApp } from "@/components/apps/agent";
 import Logo from "@/components/logo";
 import AgentPrompt from "@/components/apps/agent/prompt";
@@ -19,6 +20,7 @@ export default function OS() {
   const [isCalendarOpen, setIsCalendarOpen] = React.useState(false);
   const [isMailOpen, setIsMailOpen] = React.useState(false);
   const [isFilesOpen, setIsFilesOpen] = React.useState(false);
+  const [isSlackOpen, setIsSlackOpen] = React.useState(false);
   const [isWelcomeOpen, setIsWelcomeOpen] = React.useState(true);
   // Agent overlay state
   const [isAgentVisible, setIsAgentVisible] = React.useState(false);
@@ -164,6 +166,21 @@ export default function OS() {
             <MailApp className="h-full" />
           </Window>
         )}
+
+        {isSlackOpen && (
+          <Window
+            title="Slack"
+            initialX={260}
+            initialY={160}
+            initialWidth={1200}
+            initialHeight={720}
+            minWidth={800}
+            minHeight={600}
+            onClose={() => setIsSlackOpen(false)}
+          >
+            <SlackApp className="h-full" />
+          </Window>
+        )}
       </Desktop>
       <Dock
         items={[
@@ -192,7 +209,7 @@ export default function OS() {
             onClick: () => setIsMailOpen(true),
           },
           { id: "notion", label: "Notion", iconSrc: "/apps/Notion.png" },
-          { id: "slack", label: "Slack", iconSrc: "/apps/Slack.png" },
+          { id: "slack", label: "Slack", iconSrc: "/apps/Slack.png", onClick: () => setIsSlackOpen(true) },
           { id: "spotify", label: "Spotify", iconSrc: "/apps/Spotify.png" },
         ]}
       />
