@@ -11,8 +11,8 @@
     "test": "vitest",
     "test:unit": "vitest --run",
     "test:integration": "node integration-tests/terminal-integration.test.js",
-    "test:outlook": "node integration-tests/outlook-integration.test.js",
-    "test:all": "npm run test:unit && npm run test:integration && npm run test:outlook",
+    "test:gmail": "node integration-tests/gmail-integration.test.js",
+    "test:all": "npm run test:unit && npm run test:integration && npm run test:gmail",
     "clean": "rm -rf dist"
   },
   "dependencies": {
@@ -22,6 +22,8 @@
     "ajv": "^8.12.0",
     "axios": "^1.11.0",
     "dotenv": "^16.4.5",
+    "google-auth-library": "^9.15.1",
+    "googleapis": "^144.0.0",
     "lru-cache": "^10.4.3"
   },
   "devDependencies": {
