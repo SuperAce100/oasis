@@ -5,14 +5,15 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
-  RiFolderFill,
-  RiFile2Fill,
-  RiFileTextFill,
-  RiImageFill,
-  RiFilePdfFill,
-  RiFileCodeFill,
-} from "@remixicon/react";
+  Folder as FolderIcon,
+  File as FileIcon,
+  FileText as FileTextIcon,
+  Image as ImageIcon,
+  FileCode as FileCodeIcon,
+  FileType2 as FilePdfIcon,
+} from "lucide-react";
 
 export type FilesAppProps = React.HTMLAttributes<HTMLDivElement>;
 
@@ -55,21 +56,15 @@ function getExtension(name: string): string {
   return i >= 0 ? name.slice(i + 1).toLowerCase() : "";
 }
 
-function classifyEntry(entry: DirEntry):
-  | {
-      kind: "directory";
-      icon: React.ComponentType<{ size?: number; className?: string }>;
-      bg: string;
-      fg: string;
-    }
-  | {
-      kind: "file";
-      icon: React.ComponentType<{ size?: number; className?: string }>;
-      bg: string;
-      fg: string;
-    } {
+type IconComponent = React.ComponentType<{ size?: string | number; className?: string }>;
+
+function classifyEntry(
+  entry: DirEntry
+):
+  | { kind: "directory"; icon: IconComponent; bg: string; fg: string }
+  | { kind: "file"; icon: IconComponent; bg: string; fg: string } {
   if (entry.kind === "directory") {
-    return { kind: "directory", icon: RiFolderFill, bg: "bg-blue-500/15", fg: "text-blue-600" };
+    return { kind: "directory", icon: FolderIcon, bg: "bg-sky-500/15", fg: "text-sky-600" };
   }
   const ext = getExtension(entry.name);
   const imageExt = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"]);
@@ -92,14 +87,14 @@ function classifyEntry(entry: DirEntry):
   ]);
   const textExt = new Set(["txt", "md", "markdown", "log", "csv"]);
   if (ext === "pdf")
-    return { kind: "file", icon: RiFilePdfFill, bg: "bg-red-500/15", fg: "text-red-600" };
+    return { kind: "file", icon: FilePdfIcon, bg: "bg-rose-500/15", fg: "text-rose-600" };
   if (imageExt.has(ext))
-    return { kind: "file", icon: RiImageFill, bg: "bg-emerald-500/15", fg: "text-emerald-600" };
+    return { kind: "file", icon: ImageIcon, bg: "bg-emerald-500/15", fg: "text-emerald-600" };
   if (codeExt.has(ext))
-    return { kind: "file", icon: RiFileCodeFill, bg: "bg-violet-500/15", fg: "text-violet-600" };
+    return { kind: "file", icon: FileCodeIcon, bg: "bg-violet-500/15", fg: "text-violet-600" };
   if (textExt.has(ext))
-    return { kind: "file", icon: RiFileTextFill, bg: "bg-slate-500/10", fg: "text-slate-600" };
-  return { kind: "file", icon: RiFile2Fill, bg: "bg-slate-500/10", fg: "text-slate-600" };
+    return { kind: "file", icon: FileTextIcon, bg: "bg-stone-500/10", fg: "text-stone-600" };
+  return { kind: "file", icon: FileIcon, bg: "bg-stone-500/10", fg: "text-stone-600" };
 }
 
 function joinPath(base: string, part: string): string {
@@ -112,6 +107,9 @@ export function FilesApp({ className, ...props }: FilesAppProps) {
   const [entries, setEntries] = React.useState<DirEntry[]>([]);
   const [selected, setSelected] = React.useState<DirEntry | null>(null);
   const [preview, setPreview] = React.useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = React.useState<boolean>(false);
+  const [previewTitle, setPreviewTitle] = React.useState<string>("");
+  const [previewLoading, setPreviewLoading] = React.useState<boolean>(false);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -162,7 +160,9 @@ export function FilesApp({ className, ...props }: FilesAppProps) {
 
   const openFilePreview = React.useCallback(
     async (name: string) => {
-      setLoading(true);
+      setPreviewOpen(true);
+      setPreviewTitle(name);
+      setPreviewLoading(true);
       setError(null);
       setPreview(null);
       try {
@@ -177,7 +177,7 @@ export function FilesApp({ className, ...props }: FilesAppProps) {
       } catch {
         setError("Failed to open file");
       } finally {
-        setLoading(false);
+        setPreviewLoading(false);
       }
     },
     [cwd]
@@ -194,38 +194,32 @@ export function FilesApp({ className, ...props }: FilesAppProps) {
 
   return (
     <div className={cn("h-full w-full flex flex-col", className)} {...props}>
-      <div className="flex items-center gap-2 p-2 bg-white/50">
-        <Button size="sm" variant="secondary" onClick={goUp} title="Go up one level">
-          Up
-        </Button>
-        <Separator orientation="vertical" className="h-6" />
-        <div className="flex items-center gap-1 overflow-x-auto">
-          {cwdSegments().map((seg, idx, arr) => {
-            const isRoot = idx === 0;
-            const path = isRoot ? "/" : "/" + arr.slice(1, idx + 1).join("/");
-            return (
-              <React.Fragment key={`${seg}-${idx}`}>
-                {idx > 0 && <span className="text-muted-foreground">/</span>}
-                <button
-                  className={cn(
-                    "text-xs px-1 py-0.5 rounded hover:bg-muted",
-                    idx === arr.length - 1 ? "font-semibold" : "text-muted-foreground"
-                  )}
-                  onClick={() => navigateTo(path)}
-                >
-                  {isRoot ? "" : seg}
-                </button>
-              </React.Fragment>
-            );
-          })}
-        </div>
+      <div className="flex items-center gap-0 overflow-x-auto p-2 bg-gradient-to-b from-white/40 to-transparent">
+        {cwdSegments().map((seg, idx, arr) => {
+          const isRoot = idx === 0;
+          const path = isRoot ? "/" : "/" + arr.slice(1, idx + 1).join("/");
+          return (
+            <React.Fragment key={`${seg}-${idx}`}>
+              {idx > 0 && <span className="text-muted-foreground">/</span>}
+              <button
+                className={cn(
+                  "text-md px-1.5 py-0.5 rounded-md hover:bg-foreground/10 transition-all",
+                  idx === arr.length - 1 ? "font-semibold" : "text-muted-foreground"
+                )}
+                onClick={() => navigateTo(path)}
+              >
+                {isRoot ? "~" : seg}
+              </button>
+            </React.Fragment>
+          );
+        })}
+
         <div className="ml-auto text-xs text-muted-foreground">
           {loading ? "Loading..." : error ? <span className="text-red-500">{error}</span> : null}
         </div>
       </div>
-      <Separator />
-      <div className="flex-1 min-h-0 grid grid-cols-12 gap-0">
-        <div className="col-span-7 xl:col-span-8 min-h-0 border-r">
+      <div className="flex-1 min-h-0">
+        <div className="min-h-0 border-r">
           <ScrollArea className="h-full">
             <div className="p-4">
               {entries.length === 0 ? (
@@ -248,8 +242,7 @@ export function FilesApp({ className, ...props }: FilesAppProps) {
                         key={e.name}
                         className={cn(
                           "group flex flex-col items-center rounded-lg p-3 text-center",
-                          "transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                          isSelected ? "bg-muted" : "hover:bg-muted/60"
+                          "outline-none focus-visible:ring-2 focus-visible:ring-ring group"
                         )}
                         onClick={() => setSelected(e)}
                         onDoubleClick={() => onItemActivate(e)}
@@ -257,14 +250,19 @@ export function FilesApp({ className, ...props }: FilesAppProps) {
                       >
                         <div
                           className={cn(
-                            "rounded-xl w-20 h-20 grid place-items-center",
-                            info.bg,
-                            info.fg
+                            "w-20 h-20 grid place-items-center rounded-lg",
+                            info.fg,
+                            isSelected ? "bg-primary/10" : "bg-transparent"
                           )}
                         >
-                          <Icon size={44} className="drop-shadow-sm" />
+                          <Icon className="transition-all size-14" />
                         </div>
-                        <div className="mt-2 w-full text-xs leading-4 text-foreground/90 truncate">
+                        <div
+                          className={cn(
+                            "mt-2 px-2 py-1 rounded-md w-fit mx-auto text-xs leading-4 text-foreground/90 truncate transition-all",
+                            isSelected ? " font-semibold bg-primary text-primary-foreground " : ""
+                          )}
+                        >
                           {e.name}
                         </div>
                       </button>
@@ -275,28 +273,28 @@ export function FilesApp({ className, ...props }: FilesAppProps) {
             </div>
           </ScrollArea>
         </div>
-        <div className="col-span-5 xl:col-span-4 min-h-0">
-          <div className="h-full w-full p-3">
-            {!selected && (
-              <div className="h-full grid place-items-center text-muted-foreground text-sm">
-                Select a file to preview
-              </div>
-            )}
-            {selected?.kind === "file" && (
-              <div className="h-full w-full border rounded-md overflow-hidden bg-white">
-                <pre className="h-full w-full overflow-auto p-3 text-xs whitespace-pre-wrap font-mono bg-muted">
-                  {preview ?? "(no preview)"}
-                </pre>
-              </div>
-            )}
-            {selected?.kind === "directory" && (
-              <div className="h-full grid place-items-center text-muted-foreground text-sm">
-                Double-click to open folder
-              </div>
+      </div>
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="sm:max-w-2xl bg-white/60 backdrop-blur-sm rounded-2xl">
+          <DialogHeader>
+            <DialogTitle
+              className="truncate text-2xl font-semibold tracking-tight"
+              title={previewTitle}
+            >
+              {previewTitle}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="mt-2">
+            {previewLoading ? (
+              <div className="p-6 text-sm text-muted-foreground">Loading preview…</div>
+            ) : (
+              <pre className="max-h-[60vh] overflow-auto text-base whitespace-pre-wrap font-mono">
+                {preview ?? "(no preview)"}
+              </pre>
             )}
           </div>
-        </div>
-      </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
