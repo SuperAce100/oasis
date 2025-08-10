@@ -105,13 +105,17 @@ function MailTool({
   state?: unknown;
 }) {
   return (
-    <div className="inline-flex items-center gap-2 rounded-md border bg-white/60 px-2 py-1 text-xs">
-      <Mail className="size-4" />
-      <span className="font-medium">Mail</span>
-      <span className="text-stone-700">{humanize(toolName)}</span>
-      {renderArgs(input)}
-      {typeof state === "string" ? <span className="ml-1 text-stone-500">({state})</span> : null}
-    </div>
+    <Accordion type="single" collapsible className="w-full">
+      <AccordionItem value="mail-tool">
+        <AccordionTrigger className="text-md opacity-70">
+          <div className="flex items-center gap-2">
+            <Mail className="size-4" />
+            <span className="">{humanize(toolName)}</span>
+          </div>
+        </AccordionTrigger>
+        <AccordionContent className="pl-6 pt-1">{renderArgs(input)}</AccordionContent>
+      </AccordionItem>
+    </Accordion>
   );
 }
 
@@ -139,7 +143,7 @@ function NotionTool({ input, state }: { input?: GenericRecord; state?: unknown }
 
 function JobsTool({
   toolName,
-  args,
+  input,
   state,
 }: {
   toolName: string;

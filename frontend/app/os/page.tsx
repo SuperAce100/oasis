@@ -117,8 +117,10 @@ export default function OS() {
             title="Calendar"
             initialX={160}
             initialY={64}
-            initialWidth={380}
-            initialHeight={360}
+            initialWidth={1280}
+            initialHeight={720}
+            minWidth={800}
+            minHeight={600}
             onClose={() => setIsCalendarOpen(false)}
           >
             <CalendarApp />
@@ -130,8 +132,8 @@ export default function OS() {
             title="Mail"
             initialX={220}
             initialY={120}
-            initialWidth={800}
-            initialHeight={600}
+            initialWidth={1280}
+            initialHeight={720}
             minWidth={800}
             minHeight={600}
             onClose={() => setIsMailOpen(false)}

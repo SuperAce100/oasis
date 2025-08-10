@@ -4,6 +4,7 @@ import { convertToModelMessages, streamText, UIMessage, stepCountIs } from "ai";
 import { experimental_createMCPClient as createMCPClient } from "ai";
 import { Experimental_StdioMCPTransport as StdioMCPTransport } from "ai/mcp-stdio";
 import { mcpToolSchemas } from "../mcp-schemas";
+import { SYSTEM_PROMPT } from "@/lib/prompts";
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
@@ -23,7 +24,7 @@ export async function POST(req: Request) {
 
   const result = streamText({
     model: openai("gpt-5-mini"),
-    system: "You are a helpful assistant.",
+    system: SYSTEM_PROMPT,
     messages: convertToModelMessages(messages),
     providerOptions: {
       openai: {
