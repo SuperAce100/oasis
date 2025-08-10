@@ -51,16 +51,13 @@ class MCPClient {
     return new Promise((resolve, reject) => {
       try {
         const backendDir = this.getBackendDir();
+        // Prefer dist build if present; otherwise run dev (src)
         const distEntry = path.join(backendDir, "dist", "index.js");
-
         let proc: ChildProcessWithoutNullStreams;
         if (fs.existsSync(distEntry)) {
           proc = spawn("node", [distEntry], { cwd: backendDir, stdio: ["pipe", "pipe", "pipe"] });
         } else {
-          proc = spawn("pnpm", ["run", "dev"], {
-            cwd: backendDir,
-            stdio: ["pipe", "pipe", "pipe"],
-          });
+          proc = spawn("pnpm", ["run", "dev"], { cwd: backendDir, stdio: ["pipe", "pipe", "pipe"] });
         }
 
         this.process = proc;

@@ -52,7 +52,7 @@ export function useBackend(): UseBackend {
 
   const terminalExecute = React.useCallback(
     async (params: { command: string; cwd?: string }) => {
-      const result = await callTool<McpCallResult>("terminal.execute@v1", params);
+      const result = await callTool<McpCallResult>("execute_terminal", params);
       const first = Array.isArray(result?.content) ? result.content[0] : undefined;
       const data = (first && "data" in first ? (first as any).data : null) as {
         exitCode: number;

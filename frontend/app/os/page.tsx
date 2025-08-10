@@ -56,8 +56,8 @@ export default function OS() {
               "animate-in fade-in-0 duration-1000" + (isWelcomeOpen ? "" : "hidden animate-out")
             }
             title="Welcome"
-            initialX={window.innerWidth / 2 - 225}
-            initialY={window.innerHeight / 2 - 225}
+            initialX={typeof window !== "undefined" ? window.innerWidth / 2 - 225 : 100}
+            initialY={typeof window !== "undefined" ? window.innerHeight / 2 - 225 : 100}
             initialWidth={450}
             initialHeight={450}
           >

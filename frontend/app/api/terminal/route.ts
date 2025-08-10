@@ -1,8 +1,7 @@
-// Terminal proxy API -> delegates to backend MCP server terminal.execute@v1
+// Terminal proxy API -> delegates to backend MCP server execute_terminal
 // Accepts JSON: { command: string, cwd?: string }
 // Returns JSON: { stdout: string[], cwd: string } or { error: string }
 
-export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
@@ -53,17 +52,13 @@ class MCPClient {
     return new Promise((resolve, reject) => {
       try {
         const backendDir = this.getBackendDir();
+        // Prefer dist build if present; otherwise run dev (src)
         const distEntry = path.join(backendDir, "dist", "index.js");
-
         let proc: ChildProcessWithoutNullStreams;
         if (fs.existsSync(distEntry)) {
           proc = spawn("node", [distEntry], { cwd: backendDir, stdio: ["pipe", "pipe", "pipe"] });
         } else {
-          // Fallback to dev mode
-          proc = spawn("pnpm", ["run", "dev"], {
-            cwd: backendDir,
-            stdio: ["pipe", "pipe", "pipe"],
-          });
+          proc = spawn("pnpm", ["run", "dev"], { cwd: backendDir, stdio: ["pipe", "pipe", "pipe"] });
         }
 
         this.process = proc;
@@ -246,7 +241,7 @@ export async function POST(req: Request) {
 
     // Delegate to backend terminal tool via MCP
     try {
-      const raw = (await mcpClient.callTool("terminal.execute@v1", {
+      const raw = (await mcpClient.callTool("execute_terminal", {
         command,
         // Map virtual cwd to sandbox filesystem
         cwd: path.resolve(sandboxRoot, virtualCwd || "."),
