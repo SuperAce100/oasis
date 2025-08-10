@@ -11,6 +11,7 @@ import { MailApp } from "@/components/apps/mail";
 import { FilesApp } from "@/components/apps/files";
 import { AgentApp } from "@/components/apps/agent";
 import Logo from "@/components/logo";
+import AgentPrompt from "@/components/apps/agent/prompt";
 
 export default function OS() {
   const [isTerminalOpen, setIsTerminalOpen] = React.useState(false);
@@ -48,9 +49,11 @@ export default function OS() {
       <TopBar />
       <Desktop>
         <Window title="Welcome" initialX={32} initialY={32} initialWidth={450} initialHeight={450}>
-          <div className="prose prose-sm dark:prose-invert max-w-none flex flex-col items-center justify-center h-full text-stone-800">
+          <div className="prose prose-sm dark:prose-invert max-w-none flex flex-col items-center justify-center h-full bg-gradient-to-b from-white/40 to-primary/30 via-transparent text-stone-800">
             <Logo className="w-32 h-32" />
-            <h1 className="text-9xl font-semibold tracking-tight">Oasis</h1>
+            <h1 className="text-9xl font-semibold tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-foreground to-transparent">
+              Oasis
+            </h1>
             <p className="text-2xl text-balance text-muted-foreground">
               The AI native operating system.
             </p>
@@ -168,43 +171,15 @@ export default function OS() {
             }
           >
             {agentPhase === "prompt" ? (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const q = agentInput.trim();
-                  if (!q) return;
+              <AgentPrompt
+                value={agentInput}
+                onChange={setAgentInput}
+                onSubmit={(q) => {
                   setAgentQuery(q);
                   setAgentPhase("running");
                 }}
-                className="flex w-full flex-col gap-3 rounded-xl border border-white/40 bg-white/90 p-4 shadow-xl backdrop-blur-lg"
-              >
-                <div className="text-base font-medium text-stone-800">Ask Oasis Agent</div>
-                <input
-                  autoFocus
-                  value={agentInput}
-                  onChange={(e) => setAgentInput(e.target.value)}
-                  placeholder="What would you like to do?"
-                  className="w-full rounded-md border border-stone-300 bg-white/80 px-3 py-2 text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <div className="flex items-center justify-between">
-                  <div className="text-xs text-stone-500">Press Enter to run • Esc to close</div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setIsAgentVisible(false)}
-                      className="rounded-md px-3 py-1 text-sm text-stone-600 hover:bg-stone-100"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      className="rounded-md bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700"
-                    >
-                      Run
-                    </button>
-                  </div>
-                </div>
-              </form>
+                onCancel={() => setIsAgentVisible(false)}
+              />
             ) : (
               <AgentApp
                 query={agentQuery}
