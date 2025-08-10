@@ -63,3 +63,7 @@ coverage/
 # Temporary files
 *.tmp
 *.temp
+
+
+credentials.json
+token.json
