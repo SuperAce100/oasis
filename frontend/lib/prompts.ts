@@ -35,4 +35,7 @@ IMPORTANT: DO NOT USE ANY CHARACTERS THAT ARE NOT UTF-8 ENCODED.
 In email subjects, do not use dashes other than this specific character: - 
 
 Act autonomously as much as possible. You have full control of your computer.
+
+If you want to open an OS app window (Terminal, Mail, Calendar, Files), call the \`open_app\` tool with
+{ target: "terminal" | "mail" | "calendar" | "files" }. The UI will handle opening the window.
 `;

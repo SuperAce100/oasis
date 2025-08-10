@@ -3,7 +3,7 @@
 /**
  * Comprehensive Terminal Integration Test Suite
  * 
- * This test validates the terminal.execute@v1 endpoint with a wide variety
+ * This test validates the execute_terminal endpoint with a wide variety
  * of real-world commands and scenarios. It tests:
  * - Basic shell commands (echo, pwd, ls)
  * - File operations (create, read, permissions)
@@ -201,7 +201,7 @@ function runNextTest() {
     id: currentTest + 2,
     method: "tools/call",
     params: {
-      name: "terminal.execute@v1",
+      name: "execute_terminal",
       arguments: {
         command: test.command,
         cwd: test.cwd
