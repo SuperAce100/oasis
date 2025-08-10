@@ -12,12 +12,14 @@ import { FilesApp } from "@/components/apps/files";
 import { AgentApp } from "@/components/apps/agent";
 import Logo from "@/components/logo";
 import AgentPrompt from "@/components/apps/agent/prompt";
+import { Button } from "@/components/ui/button";
 
 export default function OS() {
   const [isTerminalOpen, setIsTerminalOpen] = React.useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = React.useState(false);
   const [isMailOpen, setIsMailOpen] = React.useState(false);
   const [isFilesOpen, setIsFilesOpen] = React.useState(false);
+  const [isWelcomeOpen, setIsWelcomeOpen] = React.useState(true);
   // Agent overlay state
   const [isAgentVisible, setIsAgentVisible] = React.useState(false);
   const [agentPhase, setAgentPhase] = React.useState<"prompt" | "running">("prompt");
@@ -48,17 +50,39 @@ export default function OS() {
     <main className="relative min-h-screen bg-background">
       <TopBar />
       <Desktop>
-        <Window title="Welcome" initialX={32} initialY={32} initialWidth={450} initialHeight={450}>
-          <div className="prose prose-sm dark:prose-invert max-w-none flex flex-col items-center justify-center h-full bg-gradient-to-b from-white/40 to-primary/30 via-transparent text-stone-800">
-            <Logo className="w-32 h-32" />
-            <h1 className="text-9xl font-semibold tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-foreground to-transparent">
-              Oasis
-            </h1>
-            <p className="text-2xl text-balance text-muted-foreground">
-              The AI native operating system.
-            </p>
-          </div>
-        </Window>
+        {isWelcomeOpen && (
+          <Window
+            className={
+              "animate-in fade-in-0 duration-1000" + (isWelcomeOpen ? "" : "hidden animate-out")
+            }
+            title="Welcome"
+            initialX={window.innerWidth / 2 - 225}
+            initialY={window.innerHeight / 2 - 225}
+            initialWidth={450}
+            initialHeight={450}
+          >
+            <div className="prose prose-sm dark:prose-invert max-w-none flex flex-col items-center justify-center h-full bg-gradient-to-b from-white/40 to-primary/30 via-transparent text-stone-800">
+              <Logo className="w-32 h-32" />
+              <h1 className="text-9xl font-semibold tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-foreground to-transparent">
+                Oasis
+              </h1>
+              <p className="text-2xl text-balance text-muted-foreground">
+                The AI native operating system.
+              </p>
+              <Button
+                variant="fancy"
+                className="mt-4"
+                onClick={() => {
+                  setIsWelcomeOpen(false);
+                  setIsAgentVisible(true);
+                  setAgentPhase("prompt");
+                }}
+              >
+                Get started
+              </Button>
+            </div>
+          </Window>
+        )}
 
         {isTerminalOpen && (
           <Window

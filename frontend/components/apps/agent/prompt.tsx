@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { SendIcon, XIcon } from "lucide-react";
 
-export interface AgentPromptProps extends React.HTMLAttributes<HTMLFormElement> {
+export interface AgentPromptProps
+  extends Omit<React.HTMLAttributes<HTMLFormElement>, "onChange" | "onSubmit"> {
   value: string;
   onChange: (value: string) => void;
   onSubmit: (value: string) => void;

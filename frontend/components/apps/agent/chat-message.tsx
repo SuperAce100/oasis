@@ -5,7 +5,7 @@ import { cva } from "class-variance-authority";
 import Markdown from "@/components/ui/markdown";
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { Copy, Check, Link as LinkIcon, FileText, BrainIcon, Wrench } from "lucide-react";
+import { Copy, Check, Link as LinkIcon, FileText, BrainIcon } from "lucide-react";
 import type { DynamicToolUIPart, UIMessage } from "ai";
 import {
   Accordion,
@@ -14,6 +14,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { CodeBlock } from "@/components/ui/code-block";
+import { RenderTool } from "./tool-renderers";
 
 const userMessageVariants = cva(
   "flex flex-col gap-2 animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-10",
@@ -177,29 +178,9 @@ function renderMessageContent(message: UIMessage) {
             </a>
           );
         }
-        if (isToolUIPart(part)) {
-          return (
-            <div
-              key={idx}
-              className="inline-flex w-fit items-center gap-2 rounded-md border bg-white/60 px-2 py-1 text-xs"
-            >
-              <Wrench className="size-4" />
-              {part.toolName}
-              {/* {part.input.} */}
-              {part.state && <span className="text-stone-600">{String(part.state)}</span>}
-            </div>
-          );
-        }
-        if (isDynamicToolUIPart(part)) {
-          return (
-            <div
-              key={idx}
-              className="inline-flex w-fit items-center gap-2 rounded-md border bg-white/60 px-2 py-1 text-xs"
-            >
-              <Wrench className="size-4" />
-              {part.toolName}
-            </div>
-          );
+        if (isToolUIPart(part) || isDynamicToolUIPart(part)) {
+          const { toolName, input, state } = extractToolInfo(part);
+          return <RenderTool key={idx} toolName={toolName} input={input} state={state} />;
         }
         if (isStepStartUIPart(part)) {
           return null;
@@ -254,7 +235,7 @@ type SourceDocumentUIPart = {
   mediaType: string;
 };
 type FileUIPart = { type: "file"; url: string; filename?: string; mediaType: string };
-type ToolUIPart = { type: string; state?: unknown };
+
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -289,4 +270,15 @@ function isToolUIPart(p: unknown): p is ToolUIPart {
 }
 function isDynamicToolUIPart(p: unknown): p is DynamicToolUIPart {
   return isRecord(p) && p.type === "dynamic-tool" && typeof p.toolName === "string";
+}
+
+function extractToolInfo(part: DynamicToolUIPart): {
+  toolName: string;
+  input?: Record<string, unknown>;
+  state?: unknown;
+} {
+  const toolName = part.toolName ?? part.type.replace("tool-", "");
+  const input = part.input;
+  const state = part.state;
+  return { toolName, input, state };
 }

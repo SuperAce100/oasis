@@ -3,6 +3,7 @@ import { convertToModelMessages, streamText, UIMessage, stepCountIs } from "ai";
 
 import { experimental_createMCPClient as createMCPClient } from "ai";
 import { Experimental_StdioMCPTransport as StdioMCPTransport } from "ai/mcp-stdio";
+import { mcpToolSchemas } from "../mcp-schemas";
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
@@ -16,7 +17,9 @@ export async function POST(req: Request) {
     }),
   });
 
-  const tools = await mcpClient.tools();
+  const tools = await mcpClient.tools({
+    schemas: mcpToolSchemas,
+  });
 
   const result = streamText({
     model: openai("gpt-5-mini"),

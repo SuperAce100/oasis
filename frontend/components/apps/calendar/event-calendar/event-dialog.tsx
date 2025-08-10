@@ -4,10 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { RiCalendarLine, RiDeleteBinLine } from "@remixicon/react";
 import { format, isBefore } from "date-fns";
 
-import type {
-  CalendarEvent,
-  EventColor,
-} from "@/components/apps/calendar/event-calendar/event-calendar";
+import type { CalendarEvent, EventColor } from "@/components/apps/calendar/event-calendar/types";
 import {
   DefaultEndHour,
   DefaultStartHour,
