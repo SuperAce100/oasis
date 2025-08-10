@@ -229,7 +229,131 @@ export const mcpToolSchemas = {
         "Spawn a computer-use agent: screenshot + vision model to propose and execute actions in a loop."
       ),
   },
+
+  // Filesystem tools
+  fs_health: {
+    inputSchema: z.object({}).describe("Filesystem health and roots"),
+  },
+
+  fs_roots: {
+    inputSchema: z.object({}).describe("List allowed filesystem roots"),
+  },
+
+  fs_exists: {
+    inputSchema: z
+      .object({
+        path: z.string(),
+        cwd: z.string().optional(),
+      })
+      .describe("Check if a path exists"),
+  },
+
+  fs_stat: {
+    inputSchema: z
+      .object({
+        path: z.string(),
+        cwd: z.string().optional(),
+      })
+      .describe("Stat a path"),
+  },
+
+  fs_dir: {
+    inputSchema: z
+      .object({
+        path: z.string(),
+        cwd: z.string().optional(),
+        includeHidden: z.boolean().optional(),
+        limit: z.number().int().optional(),
+        cursor: z.string().optional(),
+      })
+      .describe("List directory"),
+  },
+
+  fs_resolve: {
+    inputSchema: z
+      .object({
+        path: z.string(),
+        cwd: z.string().optional(),
+      })
+      .describe("Resolve input path to absolute within roots"),
+  },
+
+  fs_read: {
+    inputSchema: z
+      .object({
+        path: z.string(),
+        cwd: z.string().optional(),
+        encoding: z.enum(["utf8", "base64"]).optional(),
+        maxBytes: z.number().int().optional(),
+      })
+      .describe("Read file contents"),
+  },
+
+  fs_write: {
+    inputSchema: z
+      .object({
+        path: z.string(),
+        cwd: z.string().optional(),
+        content: z.string(),
+        encoding: z.enum(["utf8", "base64"]).optional(),
+        create: z.boolean().optional(),
+        overwrite: z.boolean().optional(),
+        mkdirp: z.boolean().optional(),
+      })
+      .describe("Write file contents"),
+  },
+
+  fs_mkdir: {
+    inputSchema: z
+      .object({
+        path: z.string(),
+        cwd: z.string().optional(),
+        recursive: z.boolean().optional(),
+      })
+      .describe("Create directory"),
+  },
+
+  fs_move: {
+    inputSchema: z
+      .object({
+        from: z.string(),
+        to: z.string(),
+        overwrite: z.boolean().optional(),
+        mkdirp: z.boolean().optional(),
+        cwd: z.string().optional(),
+      })
+      .describe("Move/rename file or directory"),
+  },
+
+  fs_delete: {
+    inputSchema: z
+      .object({
+        path: z.string(),
+        cwd: z.string().optional(),
+        recursive: z.boolean().optional(),
+      })
+      .describe("Delete file or directory"),
+  },
+
+  fs_find: {
+    inputSchema: z
+      .object({
+        cwd: z.string(),
+        glob: z.string().optional(),
+        includeHidden: z.boolean().optional(),
+        limit: z.number().int().optional(),
+      })
+      .describe("Find files under cwd (simple glob)"),
+  },
+
+  fs_complete: {
+    inputSchema: z
+      .object({
+        cwd: z.string().optional(),
+        input: z.string(),
+      })
+      .describe("Tab-complete a path-like input"),
+  },
 } as const;
 
 export type MCPToolName = keyof typeof mcpToolSchemas;
-

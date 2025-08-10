@@ -4,7 +4,9 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 export type TerminalAppProps = React.HTMLAttributes<HTMLDivElement> & {
-  // Accept a JSON string via data-deeplink attribute to avoid prop drilling through Window
+  // Preferred: structured deeplink object
+  deeplink?: { command?: string; cwd?: string };
+  // Back-compat: JSON string via data attribute
   "data-deeplink"?: string;
 };
 
@@ -36,25 +38,33 @@ export function TerminalApp({ className, ...props }: TerminalAppProps) {
 
   // Execute deeplink command on mount and when it changes
   const deeplinkRaw = (props as any)["data-deeplink"] as string | undefined;
-  const lastDeeplinkRawRef = React.useRef<string | undefined>(undefined);
+  const deeplinkObj = (props as any).deeplink as { command?: string; cwd?: string } | undefined;
+  const lastDeeplinkSigRef = React.useRef<string | undefined>(undefined);
   React.useEffect(() => {
-    if (!deeplinkRaw || deeplinkRaw === lastDeeplinkRawRef.current) return;
-    lastDeeplinkRawRef.current = deeplinkRaw;
-    console.log("[TerminalApp] Received deeplink:", deeplinkRaw);
-    try {
-      const parsed = JSON.parse(deeplinkRaw) as { command?: string; cwd?: string };
-      console.log("[TerminalApp] Parsed deeplink:", parsed);
-      if (parsed?.cwd) setCwd(parsed.cwd);
-      if (parsed?.command && parsed.command.trim().length > 0) {
-        console.log("[TerminalApp] Executing deeplink command:", parsed.command);
-        void runCommand(parsed.command, { cwd: parsed.cwd });
+    const signature = JSON.stringify(
+      deeplinkObj ? { obj: deeplinkObj } : { raw: deeplinkRaw ?? null }
+    );
+    if (!signature || signature === lastDeeplinkSigRef.current) return;
+    lastDeeplinkSigRef.current = signature;
+
+    let payload: { command?: string; cwd?: string } | undefined;
+    if (deeplinkObj) {
+      payload = deeplinkObj;
+    } else if (deeplinkRaw) {
+      try {
+        payload = JSON.parse(deeplinkRaw) as { command?: string; cwd?: string };
+      } catch {
+        payload = undefined;
       }
-    } catch (e) {
-      console.error("[TerminalApp] Failed to parse deeplink:", e);
-      // ignore malformed deeplink
+    }
+
+    if (!payload) return;
+    if (payload.cwd) setCwd(payload.cwd);
+    if (typeof payload.command === "string" && payload.command.trim().length > 0) {
+      void runCommand(payload.command, { cwd: payload.cwd });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deeplinkRaw]);
+  }, [deeplinkRaw, deeplinkObj]);
 
   React.useEffect(() => {
     // Keep scrolled to bottom when output changes

@@ -54,26 +54,35 @@ export function RenderTool({ toolName, input, state }: RenderToolProps) {
   }
 }
 
+// Debounce helper to wait for streaming args to stabilize
+function useDebounced<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = React.useState<T>(value);
+  React.useEffect(() => {
+    const id = window.setTimeout(() => setDebounced(value), delayMs);
+    return () => window.clearTimeout(id);
+  }, [value, delayMs]);
+  return debounced;
+}
+
 function TerminalTool({ input, state }: { input?: GenericRecord; state?: unknown }) {
   const command = typeof input?.command === "string" ? (input?.command as string) : undefined;
   const cwd = typeof input?.cwd === "string" ? (input?.cwd as string) : undefined;
+  const debouncedCommand = useDebounced(command, 200);
+  const isStreaming = typeof state === "string" && state === "streaming";
   const openedRef = React.useRef(false);
   React.useEffect(() => {
-    // Auto-open and execute when the tool starts streaming or when command is available
-    if (!openedRef.current && command) {
-      // Open terminal when command is available, regardless of state
+    // Open only after arguments stabilize and streaming is done
+    if (!openedRef.current && debouncedCommand && !isStreaming) {
       openedRef.current = true;
-      console.log("[TerminalTool] Dispatching openTerminal event:", { command, cwd, state });
-      openTerminal({ command, cwd });
+      openTerminal({ command: debouncedCommand, cwd });
     }
-  }, [state, command, cwd]);
+  }, [isStreaming, debouncedCommand, cwd]);
 
   const handleOpenTerminal = React.useCallback(() => {
-    console.log("[TerminalTool] Manual openTerminal click:", { command, cwd });
-    if (command) {
-      openTerminal({ command, cwd });
+    if (debouncedCommand) {
+      openTerminal({ command: debouncedCommand, cwd });
     }
-  }, [command, cwd]);
+  }, [debouncedCommand, cwd]);
 
   return (
     <div className="space-y-2">
@@ -142,20 +151,23 @@ function MailTool({
     (typeof (input as any)?.subjectContains === "string" &&
       ((input as any).subjectContains as string)) ||
     undefined;
+  const debouncedMessageId = useDebounced(messageId, 200);
+  const debouncedQuery = useDebounced(query, 200);
+  const isStreaming = typeof state === "string" && state === "streaming";
   const openedRef = React.useRef(false);
   React.useEffect(() => {
-    if (openedRef.current) return;
+    if (openedRef.current || isStreaming) return;
     // Auto-open for all mail tools as soon as inputs are available:
     // - read_email: open specific message
     // - search_email: open Mail with search query
     // - list_email: open Mail with optional folder/unread/order
     // - send_email: open Mail (no deeplink specifics yet)
-    if (toolName === "read_email" && messageId) {
+    if (toolName === "read_email" && debouncedMessageId) {
       openedRef.current = true;
-      openMail({ action: "read", messageId });
-    } else if (toolName === "search_email" && typeof query === "string") {
+      openMail({ action: "read", messageId: debouncedMessageId });
+    } else if (toolName === "search_email" && typeof debouncedQuery === "string") {
       openedRef.current = true;
-      openMail({ action: "search", query });
+      openMail({ action: "search", query: debouncedQuery });
     } else if (toolName === "list_email") {
       openedRef.current = true;
       const folderId =
@@ -166,7 +178,7 @@ function MailTool({
         typeof input?.orderBy === "string"
           ? (input?.orderBy as "receivedDateTime" | "subject")
           : undefined;
-      openMail({ action: "list", folderId, unreadOnly, orderBy, query });
+      openMail({ action: "list", folderId, unreadOnly, orderBy, query: debouncedQuery });
     } else if (toolName === "send_email") {
       try {
         // eslint-disable-next-line no-console
@@ -203,7 +215,7 @@ function MailTool({
       const format = fmt === "html" || fmt === "text" ? (fmt as "html" | "text") : undefined;
       openMail({ action: "compose", to, cc, bcc, subject, body, format });
     }
-  }, [toolName, messageId, query, input]);
+  }, [toolName, debouncedMessageId, debouncedQuery, input, isStreaming]);
   return (
     <Accordion type="single" collapsible className="w-full">
       <AccordionItem value="mail-tool">

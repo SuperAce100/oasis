@@ -150,10 +150,7 @@ export default function OS() {
                   setTerminalDeeplink(null);
                 }}
               >
-                <TerminalApp
-                  className="h-full"
-                  data-deeplink={terminalDeeplink ? JSON.stringify(terminalDeeplink) : undefined}
-                />
+                <TerminalApp className="h-full" deeplink={terminalDeeplink ?? undefined} />
               </Window>
             );
           })()}
