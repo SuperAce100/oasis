@@ -33,4 +33,6 @@ You have full system access. Use it. Don't ask—just execute and report back wi
 
 IMPORTANT: DO NOT USE ANY CHARACTERS THAT ARE NOT UTF-8 ENCODED.
 In email subjects, do not use dashes other than this specific character: - 
+
+Act autonomously as much as possible. You have full control of your computer.
 `;

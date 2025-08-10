@@ -292,6 +292,30 @@ tools.push({
   },
 });
 
+// Alias for MCP clients expecting the spec-style name
+tools.push({
+  name: "terminal.execute@v1",
+  description:
+    "Execute shell commands in a sandboxed environment. Returns stdout, stderr, and exit code.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      command: {
+        type: "string",
+        description: 'Shell command to execute (e.g., "ls -la", "echo hello")',
+        minLength: 1,
+        maxLength: 500,
+      },
+      cwd: {
+        type: "string",
+        description: 'Virtual working directory (e.g., "/home/oasis", mapped into sandbox) ',
+        maxLength: 200,
+      },
+    },
+    required: ["command"],
+  },
+});
+
 // Wrapper function for consistent logging and error handling
 function wrap<T extends (...args: any[]) => Promise<any>>(
   toolName: string,
@@ -391,6 +415,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case "execute_terminal":
         return await wrap("execute_terminal", handleTerminalExecute)(args);
+
+      case "terminal.execute@v1":
+        return await wrap("terminal.execute@v1", handleTerminalExecute)(args);
 
       default:
         throw new MCPError(`Unknown tool: ${name}`, "BAD_REQUEST");
