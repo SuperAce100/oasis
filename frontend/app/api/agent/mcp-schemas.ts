@@ -206,6 +206,29 @@ export const mcpToolSchemas = {
       })
       .describe("Execute shell commands locally"),
   },
+
+  open_app: {
+    inputSchema: z
+      .object({
+        target: z.string().min(1),
+        action: z.enum(["open", "focus"]).optional(),
+        hintClass: z.string().optional(),
+      })
+      .describe("Open an application or focus its window on the desktop (Linux only)."),
+  },
+
+  do_anything: {
+    inputSchema: z
+      .object({
+        goal: z.string().min(1),
+        maxSteps: z.number().int().min(1).max(50).optional(),
+        dryRun: z.boolean().optional(),
+        stepDelayMs: z.number().int().min(0).max(60000).optional(),
+      })
+      .describe(
+        "Spawn a computer-use agent: screenshot + vision model to propose and execute actions in a loop."
+      ),
+  },
 } as const;
 
 export type MCPToolName = keyof typeof mcpToolSchemas;
