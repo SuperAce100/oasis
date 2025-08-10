@@ -158,8 +158,40 @@ function MailTool({
           : undefined;
       openMail({ action: "list", folderId, unreadOnly, orderBy, query });
     } else if (toolName === "send_email") {
+      try {
+        // eslint-disable-next-line no-console
+        console.debug("[oasis] triggering compose deeplink", input);
+      } catch {}
       openedRef.current = true;
-      openMail({ action: "list", folderId: "sent" });
+      const splitList = (v: unknown): string[] | undefined => {
+        if (Array.isArray(v)) {
+          const arr = (v as unknown[])
+            .filter((s) => typeof s === "string")
+            .map((s) => (s as string).trim())
+            .filter(Boolean);
+          return arr.length > 0 ? arr : undefined;
+        }
+        if (typeof v === "string") {
+          const arr = v
+            .split(",")
+            .map((s) => s.trim())
+            .filter((s) => s.length > 0);
+          return arr.length > 0 ? arr : undefined;
+        }
+        return undefined;
+      };
+      const to = splitList((input as any)?.to);
+      const cc = splitList((input as any)?.cc);
+      const bcc = splitList((input as any)?.bcc);
+      const subject =
+        typeof (input as any)?.subject === "string"
+          ? ((input as any).subject as string)
+          : undefined;
+      const body =
+        typeof (input as any)?.body === "string" ? ((input as any).body as string) : undefined;
+      const fmt = (input as any)?.format;
+      const format = fmt === "html" || fmt === "text" ? (fmt as "html" | "text") : undefined;
+      openMail({ action: "compose", to, cc, bcc, subject, body, format });
     }
   }, [toolName, messageId, query, input]);
   return (

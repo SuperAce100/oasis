@@ -60,11 +60,19 @@ export default function OS() {
   // Listen for deeplink events; always open and bring to front
   React.useEffect(() => {
     const offTerm = onOpenTerminal((detail) => {
+      try {
+        // eslint-disable-next-line no-console
+        console.debug("[oasis] onOpenTerminal", detail);
+      } catch {}
       setTerminalDeeplink(detail);
       setIsTerminalOpen(true);
       setTerminalFocusBump((n) => n + 1);
     });
     const offMail = onOpenMail((detail) => {
+      try {
+        // eslint-disable-next-line no-console
+        console.debug("[oasis] onOpenMail", detail);
+      } catch {}
       setMailDeeplink(detail);
       setIsMailOpen(true);
       setMailFocusBump((n) => n + 1);
@@ -96,7 +104,7 @@ export default function OS() {
                 Oasis
               </h1>
               <p className="text-2xl text-balance text-muted-foreground">
-                The AI native operating system.
+                The AI operating system.
               </p>
               <Button
                 variant="fancy"

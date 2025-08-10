@@ -46,6 +46,11 @@ export function onOpenTerminal(listener: Listener<OpenTerminalEvent>) {
 
 export function openMail(detail: OpenMailEvent) {
   if (typeof window === "undefined") return;
+  // Debug: log mail deeplink dispatch
+  try {
+    // eslint-disable-next-line no-console
+    console.debug("[oasis] openMail dispatch", detail);
+  } catch {}
   window.dispatchEvent(new CustomEvent(OPEN_MAIL_EVENT, { detail }));
 }
 

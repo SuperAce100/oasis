@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Input } from "@/components/ui/input";
-import { ComposeDialog } from "./ComposeDialog";
+import { ComposeForm } from "./ComposeForm";
 import { MessageList } from "./MessageList";
 import { Archive, Inbox, Mail, Search, Send, Trash2 } from "lucide-react";
 import type { EmailSummary, OrderBy } from "./types";
@@ -34,6 +34,17 @@ export function Sidebar(props: {
   selectedId: string | null;
   onSelect: (id: string) => void;
   onRefreshAfterSend: () => Promise<void> | void;
+  composeOpen: boolean;
+  onComposeOpenChange: (open: boolean) => void;
+  composePrefill?: {
+    to?: string[];
+    cc?: string[];
+    bcc?: string[];
+    subject?: string;
+    body?: string;
+    format?: "text" | "html";
+  };
+  composePrefillId?: number;
 }) {
   const {
     query,
@@ -50,9 +61,19 @@ export function Sidebar(props: {
     selectedId,
     onSelect,
     onRefreshAfterSend,
+    composeOpen,
+    onComposeOpenChange,
+    composePrefill,
+    composePrefillId,
   } = props;
 
   const { isGmailConnected } = useGmailStatus();
+
+  // Local draft for search input so we only search on Enter
+  const [queryDraft, setQueryDraft] = React.useState<string>(query);
+  React.useEffect(() => {
+    setQueryDraft(query);
+  }, [query]);
 
   return (
     <aside className="col-span-4 overflow-hidden flex flex-col">
@@ -78,11 +99,15 @@ export function Sidebar(props: {
             </p>
           )}
         </div>
-        <ComposeDialog
+        <ComposeForm
           onSent={async () => {
             await onRefreshAfterSend();
             setFolderId("sent");
           }}
+          open={composeOpen}
+          onOpenChange={onComposeOpenChange}
+          prefill={composePrefill}
+          prefillId={composePrefillId}
         />
       </div>
       <div className="px-2 py-2 flex items-center gap-2">
@@ -91,8 +116,13 @@ export function Sidebar(props: {
           <Input
             placeholder="Search mail"
             className="pl-8 rounded-xl"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            value={queryDraft}
+            onChange={(e) => setQueryDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                setQuery(queryDraft);
+              }
+            }}
           />
         </div>
       </div>

@@ -17,9 +17,14 @@ export function useEmailList(params: {
     setIsLoading(true);
     setError(null);
     try {
-      if (query.trim().length > 0) {
+      // Sanitize query: trim and strip leading/trailing quotes
+      const sanitizedQuery = query
+        .trim()
+        .replace(/^['\"]+/, "")
+        .replace(/['\"]+$/, "");
+      if (sanitizedQuery.length > 0) {
         const data = await postJSON<{ messages: EmailSummary[] }>("/api/mail/search", {
-          query,
+          query: sanitizedQuery,
           limit: 100,
         });
         setEmails(data.messages || []);

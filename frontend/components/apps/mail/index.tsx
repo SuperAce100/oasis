@@ -24,6 +24,19 @@ export function MailApp({ className, ...props }: MailAppProps) {
   const [unreadOnly, setUnreadOnly] = React.useState<boolean>(false);
   const [query, setQuery] = React.useState<string>("");
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
+  const [composeOpen, setComposeOpen] = React.useState<boolean>(false);
+  const [composePrefill, setComposePrefill] = React.useState<
+    | {
+        to?: string[];
+        cc?: string[];
+        bcc?: string[];
+        subject?: string;
+        body?: string;
+        format?: "text" | "html";
+      }
+    | undefined
+  >(undefined);
+  const [composePrefillId, setComposePrefillId] = React.useState<number>(0);
   const { emails, isLoading, error, refresh } = useEmailList({
     folderId,
     unreadOnly,
@@ -51,6 +64,10 @@ export function MailApp({ className, ...props }: MailAppProps) {
     lastDeeplinkRef.current = raw;
     try {
       const parsed = JSON.parse(raw) as OpenMailEvent;
+      try {
+        // eslint-disable-next-line no-console
+        console.debug("[oasis] MailApp received deeplink", parsed);
+      } catch {}
       switch (parsed.action) {
         case "read": {
           if (parsed.messageId) setSelectedId(parsed.messageId);
@@ -71,8 +88,25 @@ export function MailApp({ className, ...props }: MailAppProps) {
           break;
         }
         case "compose": {
-          // Future: open compose prefilled. For now, just switch to Sent to reflect action after send
-          setFolderId("sent");
+          // Debug
+          try {
+            // eslint-disable-next-line no-console
+            console.debug("[oasis] applying compose prefill", parsed);
+          } catch {}
+          setComposePrefill({
+            to: Array.isArray(parsed.to)
+              ? parsed.to
+              : parsed.to
+              ? [parsed.to as unknown as string]
+              : undefined,
+            cc: Array.isArray(parsed.cc) ? parsed.cc : undefined,
+            bcc: Array.isArray(parsed.bcc) ? parsed.bcc : undefined,
+            subject: typeof parsed.subject === "string" ? parsed.subject : undefined,
+            body: typeof parsed.body === "string" ? parsed.body : undefined,
+            format: parsed.format,
+          });
+          setComposeOpen(true);
+          setComposePrefillId((n) => n + 1);
           break;
         }
       }
@@ -88,7 +122,7 @@ export function MailApp({ className, ...props }: MailAppProps) {
   return (
     <div className={cn("w-full h-full", className)} {...props}>
       <Toaster richColors position="top-right" />
-      <div className="grid grid-cols-12 gap-3 h-full bg-background">
+      <div className="grid grid-cols-12 gap-3 h-full bg-gradient-to-b from-white/40 to-background">
         <Sidebar
           query={query}
           setQuery={(q) => setQuery(q)}
@@ -109,6 +143,10 @@ export function MailApp({ className, ...props }: MailAppProps) {
           onRefreshAfterSend={async () => {
             await refresh();
           }}
+          composeOpen={composeOpen}
+          onComposeOpenChange={setComposeOpen}
+          composePrefill={composePrefill}
+          composePrefillId={composePrefillId}
         />
         <section className="col-span-8 overflow-hidden flex flex-col">
           {selectedId ? (
