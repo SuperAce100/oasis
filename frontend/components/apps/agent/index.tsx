@@ -2,21 +2,25 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import ChatMessage from "@/components/apps/agent/chat-message";
+import type { UIMessage } from "ai";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { SendIcon, XIcon } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 
 export interface AgentAppProps extends React.HTMLAttributes<HTMLDivElement> {
   query: string;
   onClose?: () => void;
 }
 
-type AgentMessage = {
-  id: string;
-  role: "user" | "agent";
-  content: string;
-};
-
 export function AgentApp({ className, query, onClose, ...props }: AgentAppProps) {
-  const [messages, setMessages] = React.useState<AgentMessage[]>(() => [
-    { id: crypto.randomUUID(), role: "user", content: query },
+  const [messages, setMessages] = React.useState<UIMessage[]>(() => [
+    {
+      id: crypto.randomUUID(),
+      role: "user",
+      parts: [{ type: "text", text: query }],
+    },
   ]);
   const [input, setInput] = React.useState("");
   const [isRunning, setIsRunning] = React.useState(true);
@@ -32,9 +36,13 @@ export function AgentApp({ className, query, onClose, ...props }: AgentAppProps)
           ...prev,
           {
             id: crypto.randomUUID(),
-            role: "agent",
-            content:
-              "I am processing your request. This is a demo agent. You can continue using the OS while I run.",
+            role: "assistant",
+            parts: [
+              {
+                type: "text",
+                text: "I am processing your request. This is a demo agent. You can continue using the OS while I run.",
+              },
+            ],
           },
         ]);
         setIsRunning(false);
@@ -54,76 +62,75 @@ export function AgentApp({ className, query, onClose, ...props }: AgentAppProps)
     if (e) e.preventDefault();
     const trimmed = input.trim();
     if (!trimmed) return;
-    const userMsg: AgentMessage = { id: crypto.randomUUID(), role: "user", content: trimmed };
+    const userMsg: UIMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      parts: [{ type: "text", text: trimmed }],
+    };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setIsRunning(true);
   }
 
   return (
-    <div
-      className={cn(
-        "flex h-full w-full flex-col rounded-xl bg-white/80 p-3 text-sm text-stone-900 shadow-xl backdrop-blur",
-        "border border-white/50 z-[9999]",
-        className
-      )}
-      {...props}
-    >
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <div className="font-medium text-stone-800">Agent</div>
-        <div className="flex items-center gap-2">
-          {isRunning ? (
-            <span className="inline-flex items-center gap-1 text-xs text-blue-600">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-blue-600" /> Running
-            </span>
-          ) : (
-            <span className="text-xs text-stone-500">Idle</span>
-          )}
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md px-2 py-1 text-xs text-stone-600 hover:bg-stone-100"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto rounded-md bg-white/60 p-2">
-        {messages.map((m) => (
-          <div
-            key={m.id}
-            className={cn(
-              "mb-2 max-w-[85%] rounded-md px-2 py-1",
-              m.role === "user"
-                ? "ml-auto bg-blue-600 text-white"
-                : "mr-auto bg-stone-100 text-stone-900"
+    <AnimatePresence>
+      <motion.div
+        className={cn(
+          "flex h-full w-full flex-col rounded-2xl p-3 text-sm shadow-xl backdrop-blur-lg bg-white/70",
+          "z-[9999]"
+        )}
+        animate={{ x: 0, opacity: 1 }}
+        exit={{ x: 100, opacity: 0 }}
+        transition={{ duration: 0.2 }}
+      >
+        <div className="mb-2 flex items-start justify-between gap-2">
+          <div className="flex flex-col items-start gap-0">
+            <div className="font-semibold ml-1 text-2xl text-stone-800">Oasis Agent</div>
+            {isRunning ? (
+              <span className="inline-flex items-center gap-1 text-xs text-primary ml-1">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-primary" /> Running
+              </span>
+            ) : (
+              <span className="text-xs text-muted-foreground ml-1">Idle</span>
             )}
-          >
-            {m.content}
           </div>
-        ))}
-        <div ref={scrollRef} />
-      </div>
+          <Button
+            onClick={onClose}
+            variant="ghost"
+            size="iconSm"
+            className="rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+          >
+            <XIcon className="" />
+          </Button>
+        </div>
 
-      <form onSubmit={handleSend} className="mt-2 flex items-center gap-2">
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Send a message…"
-          className={cn(
-            "flex-1 rounded-md border border-stone-300 bg-white/80 px-2 py-1",
-            "placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          )}
-        />
-        <button
-          type="submit"
-          className="rounded-md bg-blue-600 px-3 py-1 text-white hover:bg-blue-700"
-        >
-          Send
-        </button>
-      </form>
-    </div>
+        <div className="flex-1 overflow-y-auto p-2 space-y-2">
+          {messages.map((m) => (
+            <ChatMessage key={m.id} message={m} />
+          ))}
+          <div ref={scrollRef} />
+        </div>
+
+        <form onSubmit={handleSend} className="mt-2 flex items-center gap-1">
+          <Input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Send a message…"
+            className={cn(
+              "flex-1 rounded-lg border-foreground/10 px-2 py-1 bg-white/30 hover:bg-foreground/10 rounded-r-sm"
+            )}
+          />
+          <Button
+            type="submit"
+            variant="default"
+            size="iconLg"
+            className="rounded-lg rounded-l-sm text-sm"
+          >
+            <SendIcon />
+          </Button>
+        </form>
+      </motion.div>
+    </AnimatePresence>
   );
 }
 
