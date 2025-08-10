@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useBackend } from "@/hooks/use-backend";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { CodeBlock } from "@/components/ui/code-block";
 import {
   Folder as FolderIcon,
   File as FileIcon,
@@ -44,6 +45,20 @@ function parseLsOnePerLine(lines: string[] | undefined): DirEntry[] {
 function getExtension(name: string): string {
   const i = name.lastIndexOf(".");
   return i >= 0 ? name.slice(i + 1).toLowerCase() : "";
+}
+
+function isLikelyBinaryText(sample: string): boolean {
+  // Heuristic: many replacement characters or control chars suggest binary
+  const len = sample.length;
+  if (len === 0) return false;
+  let suspicious = 0;
+  for (let i = 0; i < Math.min(len, 2048); i++) {
+    const c = sample.charCodeAt(i);
+    // control chars excluding tab/newline/carriage return
+    if (c < 9 || (c > 13 && c < 32)) suspicious++;
+  }
+  const ratio = suspicious / Math.min(len, 2048);
+  return ratio > 0.05 || sample.includes("\uFFFD");
 }
 
 type IconComponent = React.ComponentType<{ size?: string | number; className?: string }>;
@@ -110,6 +125,10 @@ export function FilesApp({ className, ...props }: FilesAppProps) {
   const [previewOpen, setPreviewOpen] = React.useState<boolean>(false);
   const [previewTitle, setPreviewTitle] = React.useState<string>("");
   const [previewLoading, setPreviewLoading] = React.useState<boolean>(false);
+  const [previewKind, setPreviewKind] = React.useState<
+    "text" | "code" | "image" | "pdf" | "unknown"
+  >("unknown");
+  const [previewSrc, setPreviewSrc] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [deeplinkOpenFile, setDeeplinkOpenFile] = React.useState<string | null>(null);
@@ -151,16 +170,105 @@ export function FilesApp({ className, ...props }: FilesAppProps) {
           setPreviewLoading(true);
           setError(null);
           setPreview(null);
+          setPreviewSrc(null);
           try {
-            const res = await callTool<{
-              content?: string;
-              encoding?: string;
-              truncated?: boolean;
-            }>("fs_read", { path: n, cwd, maxBytes: 400 * 80 });
-            const text = (res as any)?.content ?? "";
-            setPreview(text.length > 0 ? text : "(empty file or binary)\n");
+            const ext = getExtension(n);
+            const imageExt = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"]);
+            const codeExt = new Set([
+              "ts",
+              "tsx",
+              "js",
+              "jsx",
+              "json",
+              "py",
+              "go",
+              "rs",
+              "java",
+              "cs",
+              "rb",
+              "php",
+              "sh",
+              "yml",
+              "yaml",
+              "md",
+              "txt",
+              "log",
+              "csv",
+            ]);
+
+            if (ext === "pdf") {
+              const res = await callTool<{ content?: string }>("fs_read", {
+                path: n,
+                cwd,
+                encoding: "base64",
+              });
+              const b64 = (res as any)?.content ?? "";
+              setPreviewKind("pdf");
+              setPreviewSrc(`data:application/pdf;base64,${b64}`);
+            } else if (imageExt.has(ext)) {
+              const res = await callTool<{ content?: string }>("fs_read", {
+                path: n,
+                cwd,
+                encoding: "base64",
+              });
+              const b64 = (res as any)?.content ?? "";
+              const mime =
+                ext === "svg" ? "image/svg+xml" : `image/${ext === "jpg" ? "jpeg" : ext}`;
+              setPreviewKind("image");
+              setPreviewSrc(`data:${mime};base64,${b64}`);
+            } else if (codeExt.has(ext)) {
+              const res = await callTool<{ content?: string }>("fs_read", {
+                path: n,
+                cwd,
+                encoding: "utf8",
+                maxBytes: 1024 * 1024,
+              });
+              const text = (res as any)?.content ?? "";
+              setPreviewKind(ext === "md" || ext === "txt" || ext === "log" ? "text" : "code");
+              setPreview(text.length > 0 ? text : "(empty file)\n");
+            } else {
+              // Fallback: attempt utf8 text, then upgrade if looks binary (common for images)
+              const res = await callTool<{ content?: string }>("fs_read", {
+                path: n,
+                cwd,
+                encoding: "utf8",
+                maxBytes: 256 * 1024,
+              });
+              const text = (res as any)?.content ?? "";
+              if (
+                isLikelyBinaryText(text) ||
+                /^(?:.PNG|%PDF|GIF8|.JFIF|.Exif)/.test(text.slice(0, 16))
+              ) {
+                // Try rendering as image or pdf
+                if (ext === "pdf") {
+                  const b = await callTool<{ content?: string }>("fs_read", {
+                    path: n,
+                    cwd,
+                    encoding: "base64",
+                  });
+                  setPreviewKind("pdf");
+                  setPreviewSrc(`data:application/pdf;base64,${(b as any)?.content ?? ""}`);
+                } else {
+                  const b = await callTool<{ content?: string }>("fs_read", {
+                    path: n,
+                    cwd,
+                    encoding: "base64",
+                  });
+                  const mime =
+                    ext === "svg"
+                      ? "image/svg+xml"
+                      : `image/${ext === "jpg" ? "jpeg" : ext || "png"}`;
+                  setPreviewKind("image");
+                  setPreviewSrc(`data:${mime};base64,${(b as any)?.content ?? ""}`);
+                }
+              } else {
+                setPreviewKind("text");
+                setPreview(text.length > 0 ? text : "(empty file)\n");
+              }
+            }
           } catch {
             setError("Failed to open file");
+            setPreviewKind("unknown");
           } finally {
             setPreviewLoading(false);
           }
@@ -289,7 +397,7 @@ export function FilesApp({ className, ...props }: FilesAppProps) {
 
   return (
     <div className={cn("h-full w-full flex flex-col", className)} {...props}>
-      <div className="flex items-center gap-0 overflow-x-auto p-2 bg-gradient-to-b from-white/40 to-transparent">
+      <div className="flex items-center gap-0 overflow-x-auto p-2 bg-gradient-to-b from-white/40 to-background">
         {cwdSegments().map((seg, idx, arr) => {
           const isRoot = idx === 0;
           const path = isRoot
@@ -325,7 +433,7 @@ export function FilesApp({ className, ...props }: FilesAppProps) {
                 <div
                   className={cn(
                     "grid",
-                    "gap-x-4 gap-y-6",
+                    "gap-x-4 gap-y-6 overflow-y-auto",
                     "[grid-template-columns:repeat(auto-fill,minmax(120px,1fr))]"
                   )}
                   role="list"
@@ -384,10 +492,27 @@ export function FilesApp({ className, ...props }: FilesAppProps) {
           <div className="mt-2">
             {previewLoading ? (
               <div className="p-6 text-sm text-muted-foreground">Loading preview…</div>
-            ) : (
+            ) : previewKind === "image" && previewSrc ? (
+              <div className="max-h-[70vh] overflow-auto">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={previewSrc} alt={previewTitle} className="max-w-full h-auto" />
+              </div>
+            ) : previewKind === "pdf" && previewSrc ? (
+              <div className="h-[70vh]">
+                <iframe src={previewSrc} className="w-full h-full rounded-md" />
+              </div>
+            ) : previewKind === "code" && typeof preview === "string" ? (
+              <CodeBlock
+                code={preview}
+                language={getExtension(previewTitle) || "txt"}
+                variant="flat"
+              />
+            ) : previewKind === "text" && typeof preview === "string" ? (
               <pre className="max-h-[60vh] overflow-auto text-base whitespace-pre-wrap font-mono">
-                {preview ?? "(no preview)"}
+                {preview}
               </pre>
+            ) : (
+              <div className="p-6 text-sm text-muted-foreground">(no preview)</div>
             )}
           </div>
         </DialogContent>
