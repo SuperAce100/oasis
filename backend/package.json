@@ -16,7 +16,8 @@
     "test:agent": "node integration-tests/agent-integration.test.js",
     "test:gmail": "node integration-tests/gmail-integration.test.js",
     "test:contacts": "node integration-tests/contacts-integration.test.js",
-    "test:all": "npm run test:unit && npm run test:integration && npm run test:fs && npm run test:agent && npm run test:gmail && npm run test:contacts",
+    "test:slack": "node integration-tests/slack-integration.test.js",
+    "test:all": "npm run test:unit && npm run test:integration && npm run test:fs && npm run test:agent && npm run test:gmail && npm run test:contacts && npm run test:slack",
     "clean": "rm -rf dist"
   },
   "dependencies": {

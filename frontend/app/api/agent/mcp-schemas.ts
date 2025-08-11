@@ -207,6 +207,29 @@ export const mcpToolSchemas = {
       .describe("Execute shell commands locally"),
   },
 
+  // Frontend-only proxy for terminal that hits /api/terminal to keep virtual cwd formatting
+  terminal_proxy: {
+    inputSchema: z
+      .object({
+        command: z.string().min(1).max(500),
+        cwd: z.string().max(200).optional(),
+      })
+      .describe("Execute shell via frontend /api/terminal (for consistent UI cwd)"),
+  },
+
+  // UI action (simulated inside Oasis)
+  ui_action: {
+    inputSchema: z
+      .object({
+        appId: z.enum(["terminal", "files", "mail", "calendar", "slack"]),
+        action: z.enum(["open", "focus", "type", "sendKey"]),
+        params: z
+          .object({ text: z.string().optional(), key: z.string().optional() })
+          .optional(),
+      })
+      .describe("Emit a UI intent for the frontend to open/focus/type in apps"),
+  },
+
   open_app: {
     inputSchema: z
       .object({
@@ -224,6 +247,8 @@ export const mcpToolSchemas = {
         maxSteps: z.number().int().min(1).max(50).optional(),
         dryRun: z.boolean().optional(),
         stepDelayMs: z.number().int().min(0).max(60000).optional(),
+        screenshot: z.string().optional(),
+        allowExecution: z.boolean().optional(),
       })
       .describe(
         "Spawn a computer-use agent: screenshot + vision model to propose and execute actions in a loop."
@@ -353,6 +378,45 @@ export const mcpToolSchemas = {
         input: z.string(),
       })
       .describe("Tab-complete a path-like input"),
+  },
+
+  // Slack tools
+  slack_post_message: {
+    inputSchema: z
+      .object({
+        channel: z.string(),
+        text: z.string(),
+        thread_ts: z.string().optional(),
+      })
+      .describe("Post a message to a Slack channel (by ID)"),
+  },
+  slack_list_conversations: {
+    inputSchema: z
+      .object({
+        types: z.string().optional(),
+        limit: z.number().int().min(1).max(1000).optional(),
+        cursor: z.string().optional(),
+      })
+      .describe("List conversations visible to the bot"),
+  },
+  slack_get_history: {
+    inputSchema: z
+      .object({
+        channel: z.string(),
+        limit: z.number().int().min(1).max(1000).optional(),
+        cursor: z.string().optional(),
+      })
+      .describe("Get message history for a channel"),
+  },
+  slack_open_conversation: {
+    inputSchema: z
+      .object({
+        users: z.string(),
+      })
+      .describe("Open a DM or MPIM by user IDs (comma-separated)"),
+  },
+  slack_auth_test: {
+    inputSchema: z.object({}).describe("Slack auth.test (team/app identity)"),
   },
 } as const;
 

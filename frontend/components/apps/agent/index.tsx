@@ -10,6 +10,7 @@ import { SendIcon, XIcon } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
+import { captureViewport, executeUiAction, mapComputerCallToUiAction } from "@/lib/computer-use";
 
 export interface AgentAppProps extends React.HTMLAttributes<HTMLDivElement> {
   query: string;
@@ -40,11 +41,82 @@ export function AgentApp({ className, query, onClose, ...props }: AgentAppProps)
     scrollRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length]);
 
+  // Heuristic: scan latest assistant message for an embedded uiIntent JSON object and emit a window event
+  React.useEffect(() => {
+    if (messages.length === 0) return;
+    const last = messages[messages.length - 1];
+    const text = (last as any)?.content ?? (last as any)?.text ?? "";
+    if (typeof text !== "string") return;
+    const lower = text.toLowerCase();
+    try {
+      // Find the last JSON object occurrence
+      const match = text.match(/\{[\s\S]*\}$/);
+      if (!match) return;
+      const obj = JSON.parse(match[0]);
+      const uiIntent = obj?.uiIntent || obj?.data?.uiIntent;
+      if (uiIntent && typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("oasis-ui-intent", { detail: uiIntent }));
+      }
+    } catch {
+      // ignore parsing issues
+    }
+    // Heuristic fallback: if agent mentioned open_app Terminal, dispatch UI intent
+    if (typeof window !== "undefined") {
+      if (lower.includes("open_app") && lower.includes("terminal")) {
+        window.dispatchEvent(
+          new CustomEvent("oasis-ui-intent", { detail: { action: "open_app", appId: "terminal" } })
+        );
+      } else if (lower.includes("open_app") && lower.includes("mail")) {
+        window.dispatchEvent(
+          new CustomEvent("oasis-ui-intent", { detail: { action: "open_app", appId: "mail" } })
+        );
+      } else if (lower.includes("open_app") && lower.includes("calendar")) {
+        window.dispatchEvent(
+          new CustomEvent("oasis-ui-intent", { detail: { action: "open_app", appId: "calendar" } })
+        );
+      } else if (lower.includes("open_app") && (lower.includes("files") || lower.includes("file"))) {
+        window.dispatchEvent(
+          new CustomEvent("oasis-ui-intent", { detail: { action: "open_app", appId: "files" } })
+        );
+      }
+    }
+  }, [messages]);
+
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const trimmed = input.trim();
     if (!trimmed) return;
-    void sendMessage({ text: trimmed });
+    // Special command: /use <goal> enables frontend-only computer use
+    if (trimmed.startsWith("/use ")) {
+      const goal = trimmed.slice(5).trim();
+      void (async () => {
+        // Loop using backend do_anything with frontend screenshots
+        for (let i = 0; i < 6; i++) {
+          const shot = await captureViewport();
+          const res = await fetch("/api/mcp", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "call",
+              name: "do_anything",
+              arguments: { goal, maxSteps: 1, allowExecution: false, screenshot: shot.dataUrl },
+            }),
+          });
+          const out = (await res.json().catch(() => ({}))) as any;
+          const first = Array.isArray(out?.content) ? out.content[0] : null;
+          const data = first?.data ?? {};
+          const last = Array.isArray(data?.transcript) ? data.transcript[data.transcript.length - 1] : null;
+          const uiIntent = last?.uiIntent;
+          if (uiIntent?.args) {
+            await executeUiAction(uiIntent.args);
+          }
+          if (data?.done) break;
+          await new Promise((r) => setTimeout(r, 250));
+        }
+      })();
+    } else {
+      void sendMessage({ text: trimmed });
+    }
     setInput("");
   }
 

@@ -463,10 +463,12 @@ export async function handleGmailSend(args: unknown, context: LogContext) {
     const gmail = await getGmailClient();
 
     // Build email message
+    const contentType = (validatedArgs.format === "html") ? "text/html" : "text/plain";
     const emailLines = [
       `To: ${validatedArgs.to.join(", ")}`,
       `Subject: ${validatedArgs.subject}`,
-      `Content-Type: text/${validatedArgs.format || "text"}; charset=utf-8`,
+      `Content-Type: ${contentType}; charset=UTF-8`,
+      `Content-Transfer-Encoding: 8bit`,
       `MIME-Version: 1.0`,
       "",
     ];
@@ -503,6 +505,14 @@ export async function handleGmailSend(args: unknown, context: LogContext) {
       threadId: response.data.threadId,
       labelIds: response.data.labelIds,
       message: "Email sent successfully",
+      echo: {
+        to: validatedArgs.to,
+        cc: validatedArgs.cc ?? [],
+        bcc: validatedArgs.bcc ?? [],
+        subject: validatedArgs.subject,
+        body: validatedArgs.body,
+        format: validatedArgs.format ?? "text",
+      },
     };
   } catch (error: any) {
     throw INTERNAL_ERROR(`Failed to send Gmail message: ${error.message}`);

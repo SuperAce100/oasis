@@ -13,10 +13,13 @@ import {
   type OpenTerminalEvent,
   type OpenMailEvent,
   type OpenFilesEvent,
+  onOpenSlack,
+  type OpenSlackEvent,
 } from "@/lib/os-events";
 import { CalendarApp } from "@/components/apps/calendar";
 import { MailApp } from "@/components/apps/mail";
 import { FilesApp } from "@/components/apps/files";
+import { SlackApp } from "@/components/apps/slack";
 import { AgentApp } from "@/components/apps/agent";
 import Logo from "@/components/logo";
 import AgentPrompt from "@/components/apps/agent/prompt";
@@ -27,6 +30,7 @@ export default function OS() {
   const [isCalendarOpen, setIsCalendarOpen] = React.useState(false);
   const [isMailOpen, setIsMailOpen] = React.useState(false);
   const [isFilesOpen, setIsFilesOpen] = React.useState(false);
+  const [isSlackOpen, setIsSlackOpen] = React.useState(false);
   const [filesDeeplink, setFilesDeeplink] = React.useState<OpenFilesEvent | null>(null);
   const [isWelcomeOpen, setIsWelcomeOpen] = React.useState(true);
   // Agent overlay state
@@ -68,6 +72,28 @@ export default function OS() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
+  // Listen for UI intents from agent
+  React.useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { action: string; appId: string; params?: any };
+      const { action, appId } = detail || {};
+      const openApp = (id: string) => {
+        if (id === "terminal") setIsTerminalOpen(true);
+        if (id === "files") setIsFilesOpen(true);
+        if (id === "mail") setIsMailOpen(true);
+        if (id === "calendar") setIsCalendarOpen(true);
+        if (id === "slack") setIsSlackOpen(true);
+      };
+      if (!action || !appId) return;
+      if (action === "open" || action === "focus") {
+        openApp(appId);
+      }
+    };
+    if (typeof window !== "undefined") {
+      window.addEventListener("oasis-ui-intent", handler as EventListener);
+      return () => window.removeEventListener("oasis-ui-intent", handler as EventListener);
+    }
+  }, []);
 
   // Listen for deeplink events; always open and bring to front
   React.useEffect(() => {
@@ -97,10 +123,14 @@ export default function OS() {
       setFilesDeeplink(detail);
       setIsFilesOpen(true);
     });
+    const offSlack = onOpenSlack((_detail: OpenSlackEvent) => {
+      setIsSlackOpen(true);
+    });
     return () => {
       offTerm?.();
       offMail?.();
       offFiles?.();
+      offSlack?.();
     };
   }, []);
 
@@ -220,6 +250,21 @@ export default function OS() {
             />
           </Window>
         )}
+
+        {isSlackOpen && (
+          <Window
+            title="Slack"
+            initialX={260}
+            initialY={160}
+            initialWidth={1200}
+            initialHeight={720}
+            minWidth={800}
+            minHeight={600}
+            onClose={() => setIsSlackOpen(false)}
+          >
+            <SlackApp className="h-full" />
+          </Window>
+        )}
       </Desktop>
       <Dock
         className=""
@@ -252,7 +297,7 @@ export default function OS() {
             onClick: () => setIsMailOpen(true),
           },
           { id: "notion", label: "Notion", iconSrc: "/apps/Notion.png" },
-          { id: "slack", label: "Slack", iconSrc: "/apps/Slack.png" },
+          { id: "slack", label: "Slack", iconSrc: "/apps/Slack.png", onClick: () => setIsSlackOpen(true) },
           { id: "spotify", label: "Spotify", iconSrc: "/apps/Spotify.png" },
         ]}
       />

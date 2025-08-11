@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Terminal, Calendar, Mail, Github, Book, ListChecks, Hammer } from "lucide-react";
+import { Terminal, Calendar, Mail, Github, Book, ListChecks, Hammer, Slack as SlackIcon } from "lucide-react";
 import {
   Accordion,
   AccordionItem,
@@ -9,7 +9,7 @@ import {
   AccordionContent,
 } from "@/components/ui/accordion";
 import { CodeBlock } from "@/components/ui/code-block";
-import { openMail, openTerminal } from "@/lib/os-events";
+import { openMail, openTerminal, openSlack } from "@/lib/os-events";
 
 type GenericRecord = Record<string, unknown>;
 
@@ -36,6 +36,12 @@ export function RenderTool({ toolName, input, state }: RenderToolProps) {
     case "read_email":
     case "send_email":
       return <MailTool toolName={toolName} input={input} state={state} />;
+    case "slack_post_message":
+    case "slack_list_conversations":
+    case "slack_get_history":
+    case "slack_open_conversation":
+    case "slack_auth_test":
+      return <SlackTool toolName={toolName} input={input} state={state} />;
     case "create_github_issue":
       return <GitHubTool input={input} state={state} />;
     case "get_notion_page":
@@ -240,6 +246,52 @@ function MailTool({
         <AccordionContent className="pl-6 pt-1">{renderArgs(input)}</AccordionContent>
       </AccordionItem>
     </Accordion>
+  );
+}
+
+function SlackTool({
+  toolName,
+  input,
+  state,
+}: {
+  toolName: string;
+  input?: GenericRecord;
+  state?: unknown;
+}) {
+  const channel = typeof (input as any)?.channel === "string" ? ((input as any).channel as string) : undefined;
+  const debouncedChannel = useDebounced(channel, 200);
+  const isStreaming = typeof state === "string" && state === "streaming";
+  const openedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (openedRef.current || isStreaming) return;
+    // Auto-open Slack when any Slack tool runs; pass channelId if available
+    openedRef.current = true;
+    if (debouncedChannel) {
+      openSlack({ channelId: debouncedChannel });
+    } else {
+      openSlack({});
+    }
+  }, [debouncedChannel, isStreaming]);
+
+  const handleOpenSlack = React.useCallback(() => {
+    if (debouncedChannel) openSlack({ channelId: debouncedChannel });
+    else openSlack({});
+  }, [debouncedChannel]);
+
+  return (
+    <div className="inline-flex items-center gap-2 rounded-md border bg-white/60 px-2 py-1 text-xs">
+      <SlackIcon className="size-4" />
+      <span className="font-medium">Slack</span>
+      <span className="text-stone-700">{humanize(toolName)}</span>
+      {renderArgs(input)}
+      <button
+        type="button"
+        onClick={handleOpenSlack}
+        className="ml-2 text-xs underline text-blue-700"
+      >
+        Open in Slack
+      </button>
+    </div>
   );
 }
 
