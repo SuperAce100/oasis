@@ -106,7 +106,7 @@ export default function OS() {
 
   return (
     <main className="relative min-h-screen bg-background">
-      <TopBar />
+      <TopBar className="" />
       <Desktop>
         {isWelcomeOpen && (
           <Window
@@ -114,8 +114,8 @@ export default function OS() {
               "animate-in fade-in-0 duration-1000" + (isWelcomeOpen ? "" : "hidden animate-out")
             }
             title="Welcome"
-            initialX={typeof window !== "undefined" ? window.innerWidth / 2 - 225 : 100}
-            initialY={typeof window !== "undefined" ? window.innerHeight / 2 - 225 : 100}
+            initialX={window.innerWidth / 2 - 225}
+            initialY={window.innerHeight / 2 - 225}
             initialWidth={450}
             initialHeight={450}
           >
@@ -222,6 +222,7 @@ export default function OS() {
         )}
       </Desktop>
       <Dock
+        className=""
         items={[
           {
             id: "files",

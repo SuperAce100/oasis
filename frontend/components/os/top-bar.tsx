@@ -23,7 +23,7 @@ export function TopBar({ className, title = "Oasis", ...props }: TopBarProps) {
     <div
       className={cn(
         "fixed top-0 left-0 right-0 z-50 h-8 bg-none text-white",
-        "",
+        "animate-in fade-in-0 slide-in-from-top-translate-full duration-1000",
         "flex items-center px-3 justify-between",
         className
       )}

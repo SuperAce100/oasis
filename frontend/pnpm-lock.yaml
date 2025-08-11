@@ -12,8 +12,8 @@ importers:
         specifier: ^2.0.8
         version: 2.0.8(zod@4.0.16)
       '@ai-sdk/react':
-        specifier: ^2.0.8
-        version: 2.0.8(react@19.1.0)(zod@4.0.16)
+        specifier: ^2.0.9
+        version: 2.0.9(react@19.1.0)(zod@4.0.16)
       '@dnd-kit/core':
         specifier: ^6.3.1
         version: 6.3.1(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
@@ -108,8 +108,8 @@ importers:
         specifier: ^4.6.0
         version: 4.6.0(react@19.1.0)
       ai:
-        specifier: ^5.0.8
-        version: 5.0.8(zod@4.0.16)
+        specifier: ^5.0.9
+        version: 5.0.9(zod@4.0.16)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -125,6 +125,9 @@ importers:
       embla-carousel-react:
         specifier: ^8.6.0
         version: 8.6.0(react@19.1.0)
+      framer-motion:
+        specifier: ^12.23.12
+        version: 12.23.12(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       input-otp:
         specifier: ^1.4.2
         version: 1.4.2(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
@@ -241,8 +244,8 @@ packages:
     resolution: {integrity: sha512-6o7Y2SeO9vFKB8lArHXehNuusnpddKPk7xqL7T2/b+OvXMRIXUO1rR4wcv1hAFUAT9avGZshty3Wlua/XA7TvA==}
     engines: {node: '>=18'}
 
-  '@ai-sdk/react@2.0.8':
-    resolution: {integrity: sha512-I9CI53lncv0nUy3TPW0lrnoHCZx4NUaAuFCgm6U0bId0PQKeYi61Z9XFrgo3mDByH2SSC3OVsPq6d5Db8kF1FQ==}
+  '@ai-sdk/react@2.0.9':
+    resolution: {integrity: sha512-Ehx4TfuUt/2tPUvGUK6qlTLRi0EOCnYLqswFsLnQBXMnels9kJok9rWA3JJyt5GR2NK8NDozL+7Uo2nj06T9sg==}
     engines: {node: '>=18'}
     peerDependencies:
       react: ^18 || ^19 || ^19.0.0-rc
@@ -1633,8 +1636,8 @@ packages:
     engines: {node: '>=0.4.0'}
     hasBin: true
 
-  ai@5.0.8:
-    resolution: {integrity: sha512-qbnhj046UvG30V1S5WhjBn+RBGEAmi8PSZWqMhRsE3EPxvO5BcePXTZFA23e9MYyWS9zr4Vm8Mv3wQXwLmtIBw==}
+  ai@5.0.9:
+    resolution: {integrity: sha512-l7YdzsCTId7CDNNQ+roC0m4uDMmVIO9NpDC3bI2RxNDss3XpGIvsbHq7bT+IZzMYIqGbHK17HI0eiOOvtwzN6Q==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4
@@ -3508,10 +3511,10 @@ snapshots:
     dependencies:
       json-schema: 0.4.0
 
-  '@ai-sdk/react@2.0.8(react@19.1.0)(zod@4.0.16)':
+  '@ai-sdk/react@2.0.9(react@19.1.0)(zod@4.0.16)':
     dependencies:
       '@ai-sdk/provider-utils': 3.0.1(zod@4.0.16)
-      ai: 5.0.8(zod@4.0.16)
+      ai: 5.0.9(zod@4.0.16)
       react: 19.1.0
       swr: 2.3.5(react@19.1.0)
       throttleit: 2.1.0
@@ -4878,7 +4881,7 @@ snapshots:
 
   acorn@8.15.0: {}
 
-  ai@5.0.8(zod@4.0.16):
+  ai@5.0.9(zod@4.0.16):
     dependencies:
       '@ai-sdk/gateway': 1.0.4(zod@4.0.16)
       '@ai-sdk/provider': 2.0.0

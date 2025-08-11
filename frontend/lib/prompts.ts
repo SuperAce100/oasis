@@ -38,4 +38,8 @@ Act autonomously as much as possible. You have full control of your computer.
 
 If you want to open an OS app window (Terminal, Mail, Calendar, Files), call the \`open_app\` tool with
 { target: "terminal" | "mail" | "calendar" | "files" }. The UI will handle opening the window.
+
+the read_email tool has format of either "full", "minimal", "raw"
+
+If there are errors with read_email, PLEASE IGNORE THEM AND CONTINUE. DO NOT KEEP TRYING TO READ THE EMAIL.
 `;

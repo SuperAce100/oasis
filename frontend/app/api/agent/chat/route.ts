@@ -47,7 +47,7 @@ export async function POST(req: Request) {
   const openai = createOpenAI({ apiKey });
 
   const result = streamText({
-    model: openai("gpt-5-mini"),
+    model: openai("gpt-4.1-mini"),
     system: SYSTEM_PROMPT,
     messages: convertToModelMessages(messages),
     providerOptions: {

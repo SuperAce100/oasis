@@ -21,7 +21,7 @@ export function Dock({ className, items = [], ...props }: DockProps) {
       className={cn(
         "fixed bottom-1 left-1/2 -translate-x-1/2 z-40",
         "rounded-2xl bg-foreground/10 shadow-lg",
-        "backdrop-blur supports-[backdrop-filter]:bg-foreground/20",
+        "backdrop-blur supports-[backdrop-filter]:bg-foreground/20 animate-in fade-in-0 slide-in-from-bottom-translate-full duration-1000",
         "px-1 py-1 h-16",
         className
       )}
