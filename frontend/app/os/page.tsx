@@ -13,6 +13,8 @@ import {
   type OpenTerminalEvent,
   type OpenMailEvent,
   type OpenFilesEvent,
+  onOpenSlack,
+  type OpenSlackEvent,
 } from "@/lib/os-events";
 import { CalendarApp } from "@/components/apps/calendar";
 import { MailApp } from "@/components/apps/mail";
@@ -80,6 +82,7 @@ export default function OS() {
         if (id === "files") setIsFilesOpen(true);
         if (id === "mail") setIsMailOpen(true);
         if (id === "calendar") setIsCalendarOpen(true);
+        if (id === "slack") setIsSlackOpen(true);
       };
       if (!action || !appId) return;
       if (action === "open" || action === "focus") {
@@ -120,10 +123,14 @@ export default function OS() {
       setFilesDeeplink(detail);
       setIsFilesOpen(true);
     });
+    const offSlack = onOpenSlack((_detail: OpenSlackEvent) => {
+      setIsSlackOpen(true);
+    });
     return () => {
       offTerm?.();
       offMail?.();
       offFiles?.();
+      offSlack?.();
     };
   }, []);
 

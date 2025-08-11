@@ -467,7 +467,7 @@ tools.push({
   inputSchema: {
     type: "object",
     properties: {
-      appId: { type: "string", enum: ["terminal", "files", "mail", "calendar"] },
+      appId: { type: "string", enum: ["terminal", "files", "mail", "calendar", "slack"] },
       action: { type: "string", enum: ["open", "focus", "type", "sendKey"] },
       params: { type: "object", properties: { text: { type: "string" }, key: { type: "string" } } },
     },

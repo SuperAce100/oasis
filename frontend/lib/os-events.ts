@@ -28,9 +28,15 @@ export type OpenMailEvent =
       format?: "text" | "html";
     };
 
+export type OpenSlackEvent = {
+  channelId?: string;
+  channelName?: string; // e.g., "general"
+};
+
 const OPEN_TERMINAL_EVENT = "oasis:open-terminal" as const;
 const OPEN_MAIL_EVENT = "oasis:open-mail" as const;
 const OPEN_FILES_EVENT = "oasis:open-files" as const;
+const OPEN_SLACK_EVENT = "oasis:open-slack" as const;
 
 type Listener<T> = (detail: T) => void;
 
@@ -83,4 +89,19 @@ export function onOpenMail(listener: Listener<OpenMailEvent>) {
   };
   window.addEventListener(OPEN_MAIL_EVENT, handler as EventListener);
   return () => window.removeEventListener(OPEN_MAIL_EVENT, handler as EventListener);
+}
+
+export function openSlack(detail: OpenSlackEvent = {}) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(OPEN_SLACK_EVENT, { detail }));
+}
+
+export function onOpenSlack(listener: Listener<OpenSlackEvent>) {
+  if (typeof window === "undefined") return () => {};
+  const handler = (e: Event) => {
+    const ce = e as CustomEvent<OpenSlackEvent>;
+    listener(ce.detail);
+  };
+  window.addEventListener(OPEN_SLACK_EVENT, handler as EventListener);
+  return () => window.removeEventListener(OPEN_SLACK_EVENT, handler as EventListener);
 }

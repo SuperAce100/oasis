@@ -4,7 +4,7 @@ import type { LogContext } from '../utils/logger.js';
 import { emitProgress } from '../utils/logger.js';
 
 type UiActionArgs = {
-  appId: 'terminal' | 'files' | 'mail' | 'calendar';
+  appId: 'terminal' | 'files' | 'mail' | 'calendar' | 'slack';
   action: 'open' | 'focus' | 'type' | 'sendKey';
   params?: { text?: string; key?: string };
 };
@@ -13,7 +13,7 @@ const UI_ACTION_SCHEMA: JSONSchemaType<UiActionArgs> = {
   type: 'object',
   required: ['appId', 'action'],
   properties: {
-    appId: { type: 'string', enum: ['terminal', 'files', 'mail', 'calendar'] as any },
+    appId: { type: 'string', enum: ['terminal', 'files', 'mail', 'calendar', 'slack'] as any },
     action: { type: 'string', enum: ['open', 'focus', 'type', 'sendKey'] as any },
     params: {
       type: 'object',
